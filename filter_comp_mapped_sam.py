@@ -2,7 +2,6 @@
 
 import argparse
 import os
-import sys
 from collections import defaultdict
 
 
@@ -43,15 +42,13 @@ def determine_secondary_match(info, primary_hit, focal_seqs, secondary_matches):
     the second match was (e.g., same target sequence, different subcluster,
     etc.).'''
 
-    if not info in secondary_matches:
+    if info not in secondary_matches:
         return("NA")
     
-    secondary_hit = secondary_matches[info]
-
-    if not secondary_matches[info] in focal_seqs:
+    if  secondary_matches[info] not in focal_seqs:
         return("nontarget")
 
-    elif not primary_hit in focal_seqs and secondary_matches[info] in focal_seqs:
+    elif primary_hit not in focal_seqs and secondary_matches[info] in focal_seqs:
         return("target")
 
     elif primary_hit in focal_seqs and secondary_matches[info] in focal_seqs:
@@ -75,18 +72,18 @@ def determine_paired_info(read_name, first_in_pair_flag, second_in_pair_flag,
                                str(not first_in_pair_flag),
                                str(not second_in_pair_flag)])
 
-    if not read_pair_info in all_primary_hits:
+    if read_pair_info not in all_primary_hits:
         return("unmapped")
 
-    elif not all_primary_hits[read_pair_info] in focal_seqs:
+    elif all_primary_hits[read_pair_info] not in focal_seqs:
         return("nontarget")
 
     elif all_primary_hits[read_pair_info] in focal_seqs and read_pair_info in secondary_matches:
         return("target.with.secondary")
 
-    elif all_primary_hits[read_pair_info] in focal_seqs and not read_pair_info in secondary_matches:
+    elif all_primary_hits[read_pair_info] in focal_seqs and read_pair_info not in secondary_matches:
 
-        if not primary_hit in focal_seqs:
+        if primary_hit not in focal_seqs:
             return("target")
         elif primary_hit == all_primary_hits[read_pair_info]:
             return("same.target")
