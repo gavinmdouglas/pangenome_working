@@ -3,6 +3,7 @@
 import argparse
 import os
 import sys
+from collections import defaultdict
 
 
 # Taken from https://www.biostars.org/p/13051/
@@ -12,7 +13,6 @@ def asbin(n):
 
 
 # class human_readable_sam_flags:
-
 #     def __init__(self, flag):
 #         self.read_paired = bool(int(asbin(flag)[-1]))
 #         self.read_mapped_in_proper_pair = bool(int(asbin(flag)[-2]))
@@ -29,7 +29,6 @@ def asbin(n):
 
 
 class pertinent_human_readable_sam_flags:
-
     def __init__(self, flag):
         self.read_paired = bool(int(asbin(flag)[-1]))
         self.read_unmapped = bool(int(asbin(flag)[-3]))
@@ -37,6 +36,65 @@ class pertinent_human_readable_sam_flags:
         self.first_in_pair = bool(int(asbin(flag)[-7]))
         self.second_in_pair = bool(int(asbin(flag)[-8]))
         self.not_primary_alignment = bool(int(asbin(flag)[-9]))
+
+
+def determine_secondary_match(info, primary_hit, focal_seqs, secondary_matches):
+    '''Determine whether a read has a secondary match and if so return where
+    the second match was (e.g., same target sequence, different subcluster,
+    etc.).'''
+
+    if not info in secondary_matches:
+        return("NA")
+    
+    secondary_hit = secondary_matches[info]
+
+    if not secondary_matches[info] in focal_seqs:
+        return("nontarget")
+
+    elif not primary_hit in focal_seqs and secondary_matches[info] in focal_seqs:
+        return("target")
+
+    elif primary_hit in focal_seqs and secondary_matches[info] in focal_seqs:
+
+        if primary_hit == secondary_matches[info]:
+            return("same.target")
+        elif check_cluster_id(primary_hit, secondary_matches[info]):
+            return("same.subcluster")
+        else:
+            return("diff.target")
+
+
+def determine_paired_info(read_name, first_in_pair_flag, second_in_pair_flag,
+                          primary_hit, focal_seqs, all_primary_hits,
+                          secondary_matches):
+    '''For a paired end read determine where the primary alignment of the other
+    read occurred (if at all).'''
+
+    read_pair_info = ",".join([read_name,
+                               "True",
+                               str(not first_in_pair_flag),
+                               str(not second_in_pair_flag)])
+
+    if not read_pair_info in all_primary_hits:
+        return("unmapped")
+
+    elif not all_primary_hits[read_pair_info] in focal_seqs:
+        return("nontarget")
+
+    elif all_primary_hits[read_pair_info] in focal_seqs and read_pair_info in secondary_matches:
+        return("target.with.secondary")
+
+    elif all_primary_hits[read_pair_info] in focal_seqs and not read_pair_info in secondary_matches:
+
+        if not primary_hit in focal_seqs:
+            return("target")
+        elif primary_hit == all_primary_hits[read_pair_info]:
+            return("same.target")
+        elif check_cluster_id(primary_hit, all_primary_hits[read_pair_info]):
+            return("same.subcluster")
+        else:
+            return("diff.target")
+
 
 def check_cluster_id(match1, match2):
     '''Check whether two strings are identical after removing suffix that
@@ -110,22 +168,17 @@ def main():
         for fasta_line in fasta_in:
             if fasta_line[0] == ">":
                 target_seqs.add(fasta_line[1:].rstrip())
-
+ 
 
     # Parse SAM file and keep track of for all alignments called as secondary
     # alignments which reference sequence they hit. Keep this information
     # separate for single/paired-end reads and also for the first and second
     # mates of paired-end reads.
+    secondary_hits = {}
 
     # Also for primary paired-end alignments, also keep track of what the hit
     # location was.
-
-    singleend_secondary_hits = {}
-    pairedend_firstmate_secondary_hits = {}
-    pairedend_secondmate_secondary_hits = {}
-
-    pairedend_firstmate_primary_hits = {}
-    pairedend_secondmate_primary_hits = {}
+    primary_hits = {}
 
     with open(args.input, "r") as sam_initial:
         for initial_line in sam_initial:
@@ -139,44 +192,24 @@ def main():
             map_info = pertinent_human_readable_sam_flags(int(initial_line_split[1]))
             ref_hit = initial_line_split[2]
 
-            if map_info.not_primary_alignment:
-                if not map_info.read_paired:
-                    singleend_secondary_hits[read_id] = ref_hit
+            read_info = ",".join([read_id,
+                                  str(map_info.read_paired),
+                                  str(map_info.first_in_pair),
+                                  str(map_info.second_in_pair)])
 
-                else:
-                    if map_info.first_in_pair:
-                        pairedend_firstmate_secondary_hits[read_id] = ref_hit
-                    elif map_info.second_in_pair:
-                        pairedend_secondmate_secondary_hits[read_id] = ref_hit
-                    else:
-                        sys.exit("Error, paired-end read not marked as first "
-                                 "or second in pair: " + initial_line)
+            if map_info.not_primary_alignment:
+                secondary_hits[read_info] = ref_hit
 
             elif map_info.read_paired:
-                if map_info.first_in_pair:
-                    pairedend_firstmate_primary_hits[read_id] = ref_hit
-                elif map_info.second_in_pair:
-                    pairedend_secondmate_primary_hits[read_id] = ref_hit
-                else:
-                    sys.exit("Error, paired-end read not marked as first "
-                                 "or second in pair: " + initial_line)
+                primary_hits[read_info] = ref_hit
+
 
     # Read through SAM file again, but this time write out lines that should
     # be retained. Also, keep track of read counts of different categories
     # to write on to report table.
-
     sam_output = open(args.output, "w")
 
-    total_unique_reads = 0
-
-    singleend_unique_target_map = 0
-    singleend_unique_offtarget_map = 0
-
-    singleend_multi_exact_target_map = 0
-    singleend_multi_diff_subcluster_map = 0
-    singleend_multi_diff_target_map = 0
-    singleend_multi_one_offtarget_map = 0
-    singleend_multi_both_offtarget_map = 0
+    category_counts = defaultdict(int)
 
     with open(args.input, "r") as sam_reread:
         for reread_line in sam_reread:
@@ -193,80 +226,87 @@ def main():
     
                 if sequence_id in target_seqs:
                     print(reread_line, end = "", file = sam_output)
-        
                 continue
 
             read_id = reread_line_split[0]
             map_info = pertinent_human_readable_sam_flags(int(reread_line_split[1]))
             ref_hit = reread_line_split[2]
 
+            read_info = ",".join([read_id,
+                                  str(map_info.read_paired),
+                                  str(map_info.first_in_pair),
+                                  str(map_info.second_in_pair)])
+
             # Only consider primary alignments on this read-through.
             if not map_info.not_primary_alignment:
 
                 # Confirm that read was mapped (or skip it).
                 if not map_info.read_unmapped:
-                    total_unique_reads += 1
+                    category_counts["either|any|any"] += 1
                 else:
                     continue
 
-                target_db_hit = ref_hit in target_seqs
-
-                # For single-end read, write out if there is no secondary
-                # alignment and the read mapped to a target sequence.
-                if not map_info.read_paired:
-                    
-                    if not read_id in singleend_secondary_hits:
-
-                        if target_db_hit:
-                            print(reread_line, end = "", file = sam_output)
-                            singleend_unique_target_map += 1
-                        else:
-                            singleend_unique_offtarget_map += 1
-
-                    # If there was a secondary hit then figure out if it
-                    # corresponded to exactly the same target sequence (if the
-                    # current read mapped to the target), the same subcluster
-                    # (after removing the _cN suffix and given that the current
-                    # read mapped to the target), or whether one or both of
-                    # them mapped offtarget.
-                    else:
-
-                        secondary_db_hit = singleend_secondary_hits[read_id] in target_seqs 
-
-                        if target_db_hit:
-                            if not secondary_db_hit:
-                                singleend_multi_one_offtarget_map += 1
-                            elif ref_hit == singleend_secondary_hits[read_id]:
-                                singleend_multi_exact_target_map += 1
-                            elif check_cluster_id(ref_hit, singleend_secondary_hits[read_id]):
-                                singleend_multi_diff_subcluster_map += 1
-                            else:
-                                singleend_multi_diff_target_map += 1
-
-
-                        elif secondary_db_hit:
-                            singleend_multi_one_offtarget_map += 1
-                        else:
-                            singleend_multi_both_offtarget_map += 1
-
-                # For paired-end read, need to do similar work!
+                if ref_hit in target_seqs:
+                    on_target_flag = "target"
                 else:
-                    pass
+                    on_target_flag = "nontarget"
+
+                secondary_map_match = determine_secondary_match(info = read_info,
+                                                                primary_hit = ref_hit,
+                                                                focal_seqs = target_seqs,
+                                                                secondary_matches = secondary_hits)
+
+                if not map_info.read_paired:
+                    paired_info = "NA"
+
+                else:
+                    paired_info = determine_paired_info(read_name = read_id,
+                                                        first_in_pair_flag = map_info.first_in_pair,
+                                                        second_in_pair_flag = map_info.second_in_pair,
+                                                        primary_hit = ref_hit,
+                                                        focal_seqs = target_seqs,
+                                                        all_primary_hits = primary_hits,
+                                                        secondary_matches = secondary_hits)
+
+
+                if on_target_flag == "target" and \
+                   secondary_map_match == "NA" and \
+                   paired_info in ["NA", "unmapped", "same.target",
+                                   "same.subcluster", "diff.target"]:
+
+                    print(reread_line, end = "", file = sam_output)
+
+                count_category = "|".join([on_target_flag, secondary_map_match,
+                                           paired_info])
+
+                category_counts[count_category] += 1
 
     sam_output.close()
+
 
     # Write out breakdown of read mappings to report file.
     with open(args.report, "w") as report_out:
 
-        print("#category " + os.path.basename(args.input), file = report_out)
-        print("total_unique_reads " + str(total_unique_reads), file = report_out)
-        print("singleend_unique_target_map " + str(singleend_unique_target_map), file = report_out)
-        print("singleend_unique_offtarget_map " + str(singleend_unique_offtarget_map), file = report_out)
-        print("singleend_multi_exact_target_map " + str(singleend_multi_exact_target_map), file = report_out)
-        print("singleend_multi_diff_subcluster_map " + str(singleend_multi_diff_subcluster_map), file = report_out)
-        print("singleend_multi_diff_target_map " + str(singleend_multi_diff_target_map), file = report_out)
-        print("singleend_multi_one_offtarget_map " + str(singleend_multi_one_offtarget_map), file = report_out)
-        print("singleend_multi_both_offtarget_map " + str(singleend_multi_both_offtarget_map), file = report_out)
+        print("primary_hit|secondary_hit|paired_hit" + "\t" + os.path.basename(args.input),
+              file = report_out)
+
+        print("either|any|any" + "\t" + str(category_counts["either|any|any"]),
+              file = report_out)
+
+        for target_setting in ['target', 'nontarget']:
+            for secondary_map_setting in ['NA', 'nontarget', 'target',
+                                          'same.target', 'same.subcluster',
+                                          'diff.target']:
+                for paired_map_setting in ['NA', 'unmapped', 'nontarget',
+                                           'target.with.secondary', 'target',
+                                           'same.target', 'same.subcluster',
+                                           'diff.target']:
+
+                    out_category = "|".join([target_setting, secondary_map_setting,
+                                               paired_map_setting])
+
+                    print(out_category + "\t" + str(category_counts[out_category]),
+                          file = report_out)
 
 
 if __name__ == '__main__':
