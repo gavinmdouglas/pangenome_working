@@ -56,7 +56,7 @@ def determine_secondary_match(info, primary_hit, focal_seqs, secondary_matches):
         if primary_hit == secondary_matches[info]:
             return("same.target")
         elif check_cluster_id(primary_hit, secondary_matches[info]):
-            return("same.subcluster")
+            return("diff.subcluster")
         else:
             return("diff.target")
 
@@ -88,7 +88,7 @@ def determine_paired_info(read_name, first_in_pair_flag, second_in_pair_flag,
         elif primary_hit == all_primary_hits[read_pair_info]:
             return("same.target")
         elif check_cluster_id(primary_hit, all_primary_hits[read_pair_info]):
-            return("same.subcluster")
+            return("diff.subcluster")
         else:
             return("diff.target")
 
@@ -269,7 +269,7 @@ def main():
                 if on_target_flag == "target" and \
                    secondary_map_match == "NA" and \
                    paired_info in ["NA", "unmapped", "same.target",
-                                   "same.subcluster", "diff.target"]:
+                                   "diff.subcluster", "diff.target"]:
 
                     print(reread_line, end = "", file = sam_output)
 
@@ -292,11 +292,11 @@ def main():
 
         for target_setting in ['target', 'nontarget']:
             for secondary_map_setting in ['NA', 'nontarget', 'target',
-                                          'same.target', 'same.subcluster',
+                                          'same.target', 'diff.subcluster',
                                           'diff.target']:
                 for paired_map_setting in ['NA', 'unmapped', 'nontarget',
                                            'target.with.secondary', 'target',
-                                           'same.target', 'same.subcluster',
+                                           'same.target', 'diff.subcluster',
                                            'diff.target']:
 
                     out_category = "|".join([target_setting, secondary_map_setting,
