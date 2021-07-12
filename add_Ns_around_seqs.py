@@ -24,7 +24,7 @@ def main():
                         help="Path to input FASTA", required=True)
 
     parser.add_argument("-o", "--output", metavar="FASTA", type=str,
-                        help="Path to input FASTA", required=True)
+                        help="Path to output FASTA", required=True)
 
     args = parser.parse_args()
 
