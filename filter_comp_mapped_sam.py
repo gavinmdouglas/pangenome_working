@@ -299,6 +299,23 @@ def main():
                                            'same.target', 'diff.subcluster',
                                            'diff.target']:
 
+                    # Skip impossible combinations.
+                    if target_setting == "target":
+                        # These settings should not be present, because if they hit a target sequence
+                        # then they should be a more specific category if the focal alignment hit a 
+                        # target.
+                        if secondary_map_setting == "target" or paired_map_setting == "target":
+                            continue
+
+                    else:
+                        # Similarly, these settings are not possible as they are only relevant if the
+                        # focal alignment hit a target sequence.
+                        if secondary_map_setting in ['same.target', 'diff.subcluster', 'diff.target']:
+                            continue
+                        elif paired_map_setting in ['same.target', 'diff.subcluster', 'diff.target']:
+                            continue
+
+
                     out_category = "|".join([target_setting, secondary_map_setting,
                                                paired_map_setting])
 
