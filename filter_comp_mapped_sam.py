@@ -194,6 +194,9 @@ def main():
                                   str(map_info.first_in_pair),
                                   str(map_info.second_in_pair)])
 
+            if map_info.read_unmapped:
+                continue
+
             if map_info.not_primary_alignment:
                 secondary_hits[read_info] = ref_hit
 
