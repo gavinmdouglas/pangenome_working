@@ -50,7 +50,7 @@ def main():
 
             line_split = line.split()
 
-            if int(line_split[2]) < args.min_depth:
+            if int(line_split[2]) < args.min_depth or line_split[-1] == "AmbiguousReference":
                 continue
 
             CHROM = line_split[0]
