@@ -54,7 +54,7 @@ def main():
                 continue
 
             CHROM = line_split[0]
-            POS = str(line_split[1])
+            POS = str(line_split[1] + 1)
             ID = CHROM + "|" + POS
             REF = line_split[4]
 
