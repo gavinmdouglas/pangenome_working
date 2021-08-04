@@ -17,7 +17,7 @@ def main():
     ''', formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument("-i", "--input", metavar="PROFILE_SNVs", type=str,
-                        help="Path to SNV table output by inStrain profile. command",
+                        help="Path to SNV table output by inStrain profile.",
                         required=True)
 
     parser.add_argument("-m", "--min_depth", metavar="DEPTH", type=int,
