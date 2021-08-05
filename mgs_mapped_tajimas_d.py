@@ -114,10 +114,11 @@ def main():
                 mean_coverage = 0
                 median_coverage = 0
                 nonzero_breadth = 0
+                min2_breadth = 0
 
             if len(poly_pos_coverage) > 0:
                 rounded_mean_poly_coverage = ceil(mean(poly_pos_coverage))
-                nulc_div = (num_pairwise_diff / num_comparisons) * min2_breadth
+                nulc_div = (num_pairwise_diff / num_comparisons) * num_atleast2read_bases
 
                 if rounded_mean_poly_coverage > 3:
                     (tajimas_d, wattersons_theta) = tajimas_d_and_wattersons_theta(theta_pi=nulc_div,
