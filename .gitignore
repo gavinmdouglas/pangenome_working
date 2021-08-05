@@ -1,3 +1,5 @@
+sanity_checks/create_test_seqs/test_seqs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
