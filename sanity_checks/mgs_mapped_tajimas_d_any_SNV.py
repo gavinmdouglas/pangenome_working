@@ -7,6 +7,8 @@ import pysam
 import scipy.special
 from statistics import mean, median
 from math import ceil
+sys.path.insert(1, '/home/gdouglas/projects/honey_bee/scripts/pangenome_working/')
+
 from functions.pop_gen import (num_pairwise_diff_bases,
                                tajimas_d_and_wattersons_theta)
 
@@ -15,8 +17,7 @@ def main():
 
     parser = argparse.ArgumentParser(
 
-            description="Compute Tajima's D, Watterson's theta, and nucleotide diversity based on reads aligned to a reference genome.\n
-                        NOTE THAT THIS VERSION OF THE SCRIPT WILL CONSIDER ANY NON-REFERENCE BASE IN READS AS A SNV, WHEREAS I THINK CALLING SNVS BASED ON AT LEAST ~5 READS PROBABLY MAKES MUCH MORE SENSE TO LIMIT THE EFFECT OF SEQUENCING ERRORS ON THESE METRICS.",
+            description="Compute Tajima's D, Watterson's theta, and nucleotide diversity based on reads aligned to a reference genome. NOTE THAT THIS VERSION OF THE SCRIPT WILL CONSIDER ANY NON-REFERENCE BASE IN READS AS A SNV, WHEREAS I THINK CALLING SNVS BASED ON AT LEAST ~5 READS PROBABLY MAKES MUCH MORE SENSE TO LIMIT THE EFFECT OF SEQUENCING ERRORS ON THESE METRICS.",
 
     epilog='''Usage example:
 
@@ -71,7 +72,7 @@ def main():
             num_nonzero_bases = 0
             num_atleast2read_bases = 0
 
-            for pileupcolumn in bam.pileup(contig_name, gene_start_coor, gene_end_coor):
+            for pileupcolumn in bam.pileup(contig_name, gene_start_coor, gene_end_coor, stepper = 'nofilter', truncate = True):
 
                 # Skip any positions not in the gene range.
                 if pileupcolumn.pos < gene_start_coor or pileupcolumn.pos > gene_end_coor:
