@@ -10,6 +10,8 @@ from math import ceil
 from functions.pop_gen import (num_pairwise_diff_bases,
                                tajimas_d_and_wattersons_theta)
 
+from functions.io_utils import read_vcf_variant_bases
+
 
 def main():
 
@@ -19,7 +21,7 @@ def main():
 
     epilog='''Usage example:
 
-    python mgs_mapped_tajimas_d.py --bam BAM  --bed BED --output OUTPUT_TABLE
+    python mgs_mapped_tajimas_d.py --bam BAM  --bed BED --vcf VCF --output OUTPUT_TABLE
 
     ''', formatter_class=argparse.RawDescriptionHelpFormatter)
 
@@ -31,6 +33,14 @@ def main():
                              "that was mapped to in the input BAM. Each line "
                              "should be a different gene and must include a "
                              "gene name.")
+
+    parser.add_argument("--vcf", metavar="VCF", type=str, required=True,
+                        help="Single-sample VCF containing the base call at "
+                             "variant sites that should be used. This is "
+                             "important because reads with bases at these "
+                             "sites wont be counted at this position due to "
+                             "the risk of them being sequencing errors (they "
+                             "will just be ignored).")
 
     parser.add_argument("-o", "--output", metavar="OUTPUT", type=str,
                         help="Path to output table.", required=True)
@@ -48,6 +58,9 @@ def main():
                      "num_segregating_sites", "mean_polymorphic_coverage",
                      "theta_pi", "wattersons_theta", "tajimas_d"]),
                      file = outhandle)
+
+    observed_variable_bases = read_vcf_variant_bases(in_vcf = args.vcf,
+                                                     only_poly = True)
 
     with open(args.bed, 'r') as bedfile:
 
@@ -70,38 +83,53 @@ def main():
             num_nonzero_bases = 0
             num_atleast2read_bases = 0
 
-            for pileupcolumn in bam.pileup(contig_name, gene_start_coor, gene_end_coor):
+            for pileupcolumn in bam.pileup(contig_name, gene_start_coor, gene_end_coor, stepper = 'nofilter', truncate = True):
 
                 # Skip any positions not in the gene range.
                 if pileupcolumn.pos < gene_start_coor or pileupcolumn.pos > gene_end_coor:
                     continue
 
-                unique_mapped_bases = []
+                position_coor = contig_name + "|" + str(pileupcolumn.pos)
 
-                for pileupread in pileupcolumn.pileups:
-                    if not pileupread.is_del and not pileupread.is_refskip:
-                        # query position is None if is_del or is_refskip is set.
+                bases_at_variable_site = []
 
-                        query_base = pileupread.alignment.query_sequence[pileupread.query_position].upper()
+                if position_coor in observed_variable_bases:
+                    for pileupread in pileupcolumn.pileups:
+                        if not pileupread.is_del and not pileupread.is_refskip:
+                            # query position is None if is_del or is_refskip is set.
 
-                        # Only count mappings that are unambiguous.
-                        if query_base in ['A', 'C', 'T', 'G']:
-                            unique_mapped_bases.append(query_base)
+                            query_base = pileupread.alignment.query_sequence[pileupread.query_position].upper()
 
-                pos_coverage = len(unique_mapped_bases)
+                            # Only count mappings that match a base reported in the VCF.
+                            if query_base in observed_variable_bases[position_coor]:
+                                bases_at_variable_site.append(query_base)
 
-                if pos_coverage > 0:
+                    pos_coverage = len(bases_at_variable_site)
+
+                else:
+                    pos_coverage = len(pileupcolumn.pileups)
+
+                if pos_coverage == 0:
+                    if position_coor in observed_variable_bases:
+                        sys.exit("Error - site " + position_coor +
+                                 " has 0 coverage but was expected to be a variant based on VCF.")
+                else:
                     num_nonzero_bases += 1
 
-                if pos_coverage > 1:
-                    num_atleast2read_bases += 1
-                    num_comparisons += scipy.special.comb(pos_coverage, 2)
-                    pos_pairwise_diff = num_pairwise_diff_bases(unique_mapped_bases)
-                    num_pairwise_diff += pos_pairwise_diff
+                    if pos_coverage > 1:
+                        num_atleast2read_bases += 1
+                        num_comparisons += scipy.special.comb(pos_coverage, 2)
 
-                    if pos_pairwise_diff > 0:
-                        num_segregating_sites += 1
-                        poly_pos_coverage.append(pos_coverage)
+                        if bases_at_variable_site:
+                            pos_pairwise_diff = num_pairwise_diff_bases(bases_at_variable_site)
+                            num_pairwise_diff += pos_pairwise_diff
+
+                            if pos_pairwise_diff == 0:
+                                sys.exit("Error - site " + position_coor +
+                                         " has no pairwise differences but was expected to be a variant based on VCF.")
+
+                            num_segregating_sites += 1
+                            poly_pos_coverage.append(pos_coverage)
 
                 per_pos_coverage.append(pos_coverage)
 

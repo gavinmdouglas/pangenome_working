@@ -89,3 +89,45 @@ def read_fastq_headers(filepath):
                     lineno += 1
 
         return(header_lines)
+
+
+def read_vcf_variant_bases(in_vcf, only_poly=False):
+    '''Read VCF and return dictionary with coordinate as key and all 
+    observed bases at polymorphic / non-reference site as values. Set
+    only_poly=True to only return sites where there are two alleles
+    segregating (i.e., fixed non-ref sites will not be returned).'''
+
+    variant_sites = {}
+
+    with open(in_vcf, 'r') as vcffile:
+        for vcf_line in vcffile:
+
+            if vcf_line[0] == "#":
+                continue
+
+            vcf_line = vcf_line.rstrip()
+            vcf_split = vcf_line.split()
+
+            contig_name = vcf_split[0]
+            position = int(vcf_split[1]) - 1
+
+            ref_base = vcf_split[3]
+            alt_bases = vcf_split[4].split(",")
+
+            genotypes = vcf_split[9].split("/")
+
+            observed_bases = []
+
+            if '0' in genotypes:
+                observed_bases.append(ref_base)
+
+            for alt_i in range(1, 4):
+                if str(alt_i) in genotypes:
+                    observed_bases.append(alt_bases[alt_i - 1])
+
+            if only_poly and len(observed_bases) == 1:
+                continue
+
+            variant_sites[contig_name + "|" + str(position)] = observed_bases
+
+    return(variant_sites)
