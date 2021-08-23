@@ -16,7 +16,7 @@ def main():
                         "(non-simple) that did extensive purging of sequences "
                         "with any secondary sequences. This was will likely "
                         "keep more false alignments while keeping more reads "
-                        "in general.",
+                        "in general. All header lines are kept.",
 
     epilog='''Usage example:
 
@@ -53,17 +53,9 @@ def main():
         for read_line in sam_read:
             read_line_split = read_line.split()
             
-            # Print out headers except for sequence headerlines that do not
-            # match target sequences.
-            if read_line_split[0] in ["@HD", "@PG"]:
+            # Print out headers.
+            if read_line_split[0] in ["@HD", "@PG", "@SQ", "@RG", "@CO"]:
                 print(read_line, end = "", file = sam_output)
-                continue
-
-            elif read_line_split[0] == "@SQ":
-                sequence_id = read_line_split[1].replace("SN:", "")
-    
-                if sequence_id in target_seqs:
-                    print(read_line, end = "", file = sam_output)
                 continue
 
             ref_hit = read_line_split[2]
