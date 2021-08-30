@@ -109,8 +109,6 @@ def main():
 
                 pos_coverage = len(unique_mapped_bases)
 
-                print([pileupcolumn.pos, pos_coverage])
-
                 if args.rare_depth and pos_coverage >= min_coverage:
                     unique_mapped_bases = sample(unique_mapped_bases,
                                                  min_coverage)
@@ -169,8 +167,6 @@ def main():
             outline = [str(x) for x in outline]
 
             print("\t".join(outline), file = outhandle)
-
-            sys.exit([num_nonzero_bases, nonzero_breadth, min_breadth])
 
     outhandle.close()
 
