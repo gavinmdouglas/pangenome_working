@@ -7,6 +7,8 @@ import pysam
 import scipy.special
 from statistics import mean, median
 from math import ceil
+from random import sample
+
 sys.path.insert(1, '/home/gdouglas/projects/honey_bee/scripts/pangenome_working/')
 
 from functions.pop_gen import (num_pairwise_diff_bases,
@@ -34,10 +36,21 @@ def main():
                              "should be a different gene and must include a "
                              "gene name.")
 
+    parser.add_argument("--rare_depth", metavar="INT", type=int,
+                        required=False, default = None,
+                        help="If specified, randomly subsample reads at each "
+                             "site to specified depth before identifying "
+                             "variants and differences.")
+
     parser.add_argument("-o", "--output", metavar="OUTPUT", type=str,
                         help="Path to output table.", required=True)
 
     args = parser.parse_args()
+
+    if args.rare_depth:
+        min_coverage = args.rare_depth
+    else:
+        min_coverage = 2
 
     bam = pysam.AlignmentFile(args.bam, 'rb')
 
@@ -45,7 +58,7 @@ def main():
 
     print("\t".join(["gene", "contig", "start_0_in", "stop_0_ex",
                      "mean_coverage", "median_coverage", "num_mapped_pos",
-                     "breadth_coverage_nonzero", "breadth_coverage_atleast2",
+                     "breadth_coverage_nonzero", "breadth_coverage_atleastmin",
                      "num_pairwise_diff", "num_comparisons",
                      "num_segregating_sites", "mean_polymorphic_coverage",
                      "theta_pi", "wattersons_theta", "tajimas_d"]),
@@ -70,9 +83,13 @@ def main():
             per_pos_coverage = list()
             poly_pos_coverage = list()
             num_nonzero_bases = 0
-            num_atleast2read_bases = 0
+            num_atleastminread_bases = 0
 
-            for pileupcolumn in bam.pileup(contig_name, gene_start_coor, gene_end_coor, stepper = 'nofilter', truncate = True):
+            for pileupcolumn in bam.pileup(contig_name,
+                                           gene_start_coor,
+                                           gene_end_coor,
+                                           stepper = 'nofilter',
+                                           truncate = True):
 
                 # Skip any positions not in the gene range.
                 if pileupcolumn.pos < gene_start_coor or pileupcolumn.pos > gene_end_coor:
@@ -92,11 +109,18 @@ def main():
 
                 pos_coverage = len(unique_mapped_bases)
 
+                print([pileupcolumn.pos, pos_coverage])
+
+                if args.rare_depth and pos_coverage >= min_coverage:
+                    unique_mapped_bases = sample(unique_mapped_bases,
+                                                 min_coverage)
+                    pos_coverage = min_coverage
+
                 if pos_coverage > 0:
                     num_nonzero_bases += 1
 
-                if pos_coverage > 1:
-                    num_atleast2read_bases += 1
+                if pos_coverage >= min_coverage:
+                    num_atleastminread_bases += 1
                     num_comparisons += scipy.special.comb(pos_coverage, 2)
                     pos_pairwise_diff = num_pairwise_diff_bases(unique_mapped_bases)
                     num_pairwise_diff += pos_pairwise_diff
@@ -111,16 +135,16 @@ def main():
                 mean_coverage = mean(per_pos_coverage)
                 median_coverage = median(per_pos_coverage)
                 nonzero_breadth = (num_nonzero_bases / (gene_end_coor - gene_start_coor)) * 100
-                min2_breadth = (num_atleast2read_bases / (gene_end_coor - gene_start_coor)) * 100
+                min_breadth = (num_atleastminread_bases / (gene_end_coor - gene_start_coor)) * 100
             else:
                 mean_coverage = 0
                 median_coverage = 0
                 nonzero_breadth = 0
-                min2_breadth = 0
+                min_breadth = 0
 
             if len(poly_pos_coverage) > 0:
                 rounded_mean_poly_coverage = ceil(mean(poly_pos_coverage))
-                nulc_div = (num_pairwise_diff / num_comparisons) * num_atleast2read_bases
+                nulc_div = (num_pairwise_diff / num_comparisons) * num_atleastminread_bases
 
                 if rounded_mean_poly_coverage > 3:
                     (tajimas_d, wattersons_theta) = tajimas_d_and_wattersons_theta(theta_pi=nulc_div,
@@ -137,7 +161,7 @@ def main():
 
             outline = [gene_name, contig_name, gene_start_coor, gene_end_coor,
                        mean_coverage, median_coverage, num_nonzero_bases,
-                       nonzero_breadth, min2_breadth, num_pairwise_diff,
+                       nonzero_breadth, min_breadth, num_pairwise_diff,
                        num_comparisons, num_segregating_sites,
                        rounded_mean_poly_coverage, nulc_div, wattersons_theta,
                        tajimas_d]
@@ -145,6 +169,8 @@ def main():
             outline = [str(x) for x in outline]
 
             print("\t".join(outline), file = outhandle)
+
+            sys.exit([num_nonzero_bases, nonzero_breadth, min_breadth])
 
     outhandle.close()
 
