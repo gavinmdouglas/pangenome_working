@@ -1,0 +1,409 @@
+---
+title: "Summarizing Ellegaard 2019/2020 pandora-based pangenomes"
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(reshape2)
+library(kableExtra)
+library(knitr)
+
+distinct_21_colours <- c("#5b531d",
+                          "#874bd2",
+                          "#8aad00",
+                          "#b03bc1",
+                          "#ef8e00",
+                          "#9387ff",
+                          "#837200",
+                          "#b7008b",
+                          "#01d1bd",
+                          "#ff3a88",
+                          "#92d5a3",
+                          "#a5102d",
+                          "#016cba",
+                          "#ff5b4b",
+                          "#5e4298",
+                          "#cbca7d",
+                          "#8c2d6e",
+                          "#c9a275",
+                          "#fea9ff",
+                          "#89374a",
+                          "#ff8d8a")
+```
+
+Split up by cloud, shell, and core genes, which I defined as genes encoded by 1, > 1 and < all, and all genomes, respectively.
+
+```{r read_in_panaroo_tables}
+phylotypes <- c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")
+
+panaroo_tables <- list()
+
+gene_categories <- list()
+
+panaroo_counts <- data.frame(matrix(NA, nrow = length(phylotypes), ncol = 2))
+colnames(panaroo_counts) <- c("num_genomes", "num_genes")
+rownames(panaroo_counts) <- phylotypes
+
+for (phylotype in phylotypes) {
+  panaroo_tab_path <- paste("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only", phylotype, "gene_presence_absence_roary.csv.gz", sep = "/")
+  panaroo_tables[[phylotype]] <- read.table(panaroo_tab_path, header = TRUE, sep = ",", comment.char = "", quote = "")
+  rownames(panaroo_tables[[phylotype]]) <- paste(phylotype, panaroo_tables[[phylotype]]$Gene, sep = "_")
+  
+  # Need to remove major Bifidobacterium outlier genome.
+  if (phylotype == "Bifidobacterium") {
+      panaroo_tables[["Bifidobacterium"]]$No..isolates[which(panaroo_tables[["Bifidobacterium"]]$GCA_000741525.1_Bifboh != "")] <- panaroo_tables[["Bifidobacterium"]]$No..isolates[which(panaroo_tables[["Bifidobacterium"]]$GCA_000741525.1_Bifboh != "")] - 1
+      panaroo_tables[["Bifidobacterium"]] <- panaroo_tables[["Bifidobacterium"]][, -which(colnames(panaroo_tables[["Bifidobacterium"]]) == "GCA_000741525.1_Bifboh")]
+      panaroo_tables[["Bifidobacterium"]] <- panaroo_tables[["Bifidobacterium"]][-which(panaroo_tables[["Bifidobacterium"]]$No..isolates == 0), ]
+  }
+  
+  panaroo_counts[phylotype, "num_genomes"] <- ncol(panaroo_tables[[phylotype]]) - 14
+  panaroo_counts[phylotype, "num_genes"] <- nrow(panaroo_tables[[phylotype]])
+  
+  gene_categories[[phylotype]] <- list(cloud = rownames(panaroo_tables[[phylotype]])[which(panaroo_tables[[phylotype]]$No..isolates == 1)],
+                                       shell = rownames(panaroo_tables[[phylotype]])[which(panaroo_tables[[phylotype]]$No..isolates > 1 & panaroo_tables[[phylotype]]$No..isolates < panaroo_counts[phylotype, "num_genomes"])],
+                                       core = rownames(panaroo_tables[[phylotype]])[which(panaroo_tables[[phylotype]]$No..isolates == panaroo_counts[phylotype, "num_genomes"])])
+  
+  panaroo_counts[phylotype, "num_cloud"] <- length(gene_categories[[phylotype]]$cloud)
+  panaroo_counts[phylotype, "num_shell"] <- length(gene_categories[[phylotype]]$shell)
+  panaroo_counts[phylotype, "num_core"] <- length(gene_categories[[phylotype]]$core)
+  
+}
+```
+
+# Genome and gene count summaries
+
+```{r panaroo_count_table}
+kable(panaroo_counts) %>%
+  kable_styling(full_width = FALSE)
+```
+
+
+# U-shaped plots {.tabset}
+
+```{r ushaped_plot_loop, results='asis', echo=FALSE}
+for (phylotype in phylotypes) {
+  cat('## ', phylotype, ' \n\n\n')
+  print(ggplot(data=panaroo_tables[[phylotype]], aes(x=No..isolates)) +
+    geom_histogram(binwidth = 1) + 
+    xlab("Number of isolates") +
+    ylab("Number of genes") +
+    xlim(0, panaroo_counts[phylotype, "num_genomes"] + 1))
+  cat(' \n\n')
+}
+```
+
+
+# Percent annotated genes {.tabset}
+
+## CAZy
+
+```{r CAZy_percent_annot_heatmap}
+CAZy_annot <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_ref_only_annot/CAZy_microbiota_panaroo_orthologs.tsv.gz",
+                         header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
+
+CAZy_annoted_raw <- list()
+
+for (phylotype in phylotypes) {
+ 
+  CAZy_annoted_raw[[phylotype]] <- data.frame(matrix(NA, nrow = 3, ncol = 3))
+  colnames(CAZy_annoted_raw[[phylotype]]) <- c("phylotype", "gene_category", "percent_CAZy_annot")
+  rownames(CAZy_annoted_raw[[phylotype]]) <- c("cloud", "shell", "core")
+  
+  CAZy_annoted_raw[[phylotype]]$phylotype <- phylotype
+  CAZy_annoted_raw[[phylotype]]$gene_category <- rownames(CAZy_annoted_raw[[phylotype]])
+  
+  CAZy_annoted_raw[[phylotype]]["cloud", "percent_CAZy_annot"] <- (length(which(gene_categories[[phylotype]]$cloud %in% rownames(CAZy_annot))) / length(gene_categories[[phylotype]]$cloud)) * 100
+  CAZy_annoted_raw[[phylotype]]["shell", "percent_CAZy_annot"] <- (length(which(gene_categories[[phylotype]]$shell %in% rownames(CAZy_annot))) / length(gene_categories[[phylotype]]$shell)) * 100
+  CAZy_annoted_raw[[phylotype]]["core", "percent_CAZy_annot"] <- (length(which(gene_categories[[phylotype]]$core %in% rownames(CAZy_annot))) / length(gene_categories[[phylotype]]$core)) * 100
+  
+}
+
+CAZy_annoted_tab <- do.call(rbind, CAZy_annoted_raw)
+  
+CAZy_annoted_tab$percent_CAZy_annot <- round(CAZy_annoted_tab$percent_CAZy_annot, 3)
+
+CAZy_annoted_tab$phylotype <- factor(CAZy_annoted_tab$phylotype, levels = rev(c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")))
+
+CAZy_annoted_tab$gene_category <- factor(CAZy_annoted_tab$gene_category, levels = c("cloud", "shell", "core"))
+
+ggplot(data = CAZy_annoted_tab, aes(x = gene_category, y = phylotype, fill = percent_CAZy_annot)) +
+        geom_tile() +
+        geom_text(aes(label = percent_CAZy_annot)) +
+        scale_fill_continuous(low = "white", high = "red")
+```
+
+
+
+## KEGG
+
+```{r KEGG_percent_annot_heatmap}
+KEGG_annot <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_ref_only_annot/KO_microbiota_panaroo_orthologs.tsv.gz",
+                         header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
+
+KEGG_annoted_raw <- list()
+
+for (phylotype in phylotypes) {
+ 
+  KEGG_annoted_raw[[phylotype]] <- data.frame(matrix(NA, nrow = 3, ncol = 3))
+  colnames(KEGG_annoted_raw[[phylotype]]) <- c("phylotype", "gene_category", "percent_KEGG_annot")
+  rownames(KEGG_annoted_raw[[phylotype]]) <- c("cloud", "shell", "core")
+  
+  KEGG_annoted_raw[[phylotype]]$phylotype <- phylotype
+  KEGG_annoted_raw[[phylotype]]$gene_category <- rownames(KEGG_annoted_raw[[phylotype]])
+  
+  KEGG_annoted_raw[[phylotype]]["cloud", "percent_KEGG_annot"] <- (length(which(gene_categories[[phylotype]]$cloud %in% rownames(KEGG_annot))) / length(gene_categories[[phylotype]]$cloud)) * 100
+  KEGG_annoted_raw[[phylotype]]["shell", "percent_KEGG_annot"] <- (length(which(gene_categories[[phylotype]]$shell %in% rownames(KEGG_annot))) / length(gene_categories[[phylotype]]$shell)) * 100
+  KEGG_annoted_raw[[phylotype]]["core", "percent_KEGG_annot"] <- (length(which(gene_categories[[phylotype]]$core %in% rownames(KEGG_annot))) / length(gene_categories[[phylotype]]$core)) * 100
+  
+}
+
+KEGG_annoted_tab <- do.call(rbind, KEGG_annoted_raw)
+  
+KEGG_annoted_tab$percent_KEGG_annot <- round(KEGG_annoted_tab$percent_KEGG_annot, 3)
+
+KEGG_annoted_tab$phylotype <- factor(KEGG_annoted_tab$phylotype, levels = rev(c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")))
+
+KEGG_annoted_tab$gene_category <- factor(KEGG_annoted_tab$gene_category, levels = c("cloud", "shell", "core"))
+
+ggplot(data = KEGG_annoted_tab, aes(x = gene_category, y = phylotype, fill = percent_KEGG_annot)) +
+        geom_tile() +
+        geom_text(aes(label = percent_KEGG_annot)) +
+        scale_fill_continuous(low = "white", high = "red")
+```
+
+# Breakdown of functional categories {.tabset}
+
+## CAZy
+
+```{r CAZy_phylotype_relabun_breakdown, fig.width = 8, fig.height = 6}
+CAZy_families_annot_raw <- list()
+CAZy_families_annot_raw_all_cat <- list()
+
+CAZy_family_info <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_ref_only_annot/2021_10_14_CAZy_family_info.txt.gz",
+                               header = TRUE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
+
+for (phylotype in phylotypes) {
+  
+  CAZy_families_annot_raw[[phylotype]] <- list()
+  
+  for (gene_category in c("cloud", "shell", "core")) {
+  
+    CAZy_families_annot_raw[[phylotype]][[gene_category]] <- data.frame(matrix(NA, nrow = nrow(CAZy_family_info), ncol = 5))
+    rownames(CAZy_families_annot_raw[[phylotype]][[gene_category]]) <- rownames(CAZy_family_info)
+    colnames(CAZy_families_annot_raw[[phylotype]][[gene_category]]) <- c("CAZy_family", "phylotype", "gene_category", "num_genes", "percent_CAZy_annot_genes")
+    CAZy_families_annot_raw[[phylotype]][[gene_category]]$CAZy_family <- CAZy_family_info$family
+    CAZy_families_annot_raw[[phylotype]][[gene_category]]$phylotype <- phylotype
+    
+    phylotype_category_CAZy_annot_genes <- gene_categories[[phylotype]][[gene_category]][which(gene_categories[[phylotype]][[gene_category]] %in% rownames(CAZy_annot))]
+
+    CAZy_families_annot_raw[[phylotype]][[gene_category]]$gene_category <- gene_category
+
+    if (length(phylotype_category_CAZy_annot_genes) == 0) { next }
+    
+    phylotype_category_CAZy_annot_categories <- CAZy_annot[phylotype_category_CAZy_annot_genes, ]
+
+    for (CAZy_family in rownames(CAZy_family_info)) {
+      CAZy_families_annot_raw[[phylotype]][[gene_category]][CAZy_family, "num_genes"] <- length(grep(CAZy_family, phylotype_category_CAZy_annot_categories))
+    }
+    
+    CAZy_families_annot_raw[[phylotype]][[gene_category]]$percent_CAZy_annot_genes <- (CAZy_families_annot_raw[[phylotype]][[gene_category]]$num_genes / sum(CAZy_families_annot_raw[[phylotype]][[gene_category]]$num_genes)) * 100
+
+  }
+  
+  CAZy_families_annot_raw_all_cat[[phylotype]] <- do.call(rbind, CAZy_families_annot_raw[[phylotype]])
+}
+
+CAZy_families_annot <- do.call(rbind, CAZy_families_annot_raw_all_cat)
+
+CAZy_families_annot$gene_category <- factor(CAZy_families_annot$gene_category, levels = c("cloud", "shell", "core"))
+
+ggplot(data = CAZy_families_annot, aes(x = gene_category, y = percent_CAZy_annot_genes, fill = CAZy_family)) +
+        geom_bar(stat = "identity") +
+        facet_grid(. ~ phylotype) +
+        scale_fill_manual(values = c("grey90", "black", "brown", "light green", "blue", "yellow")) +
+        xlab("") +
+        ylab("% of CAZy-annotated genes") +
+        theme_bw()
+```
+
+
+## KEGG {.tabset}
+
+### KEGG modules
+
+```{r KEGG_modules_phylotype_relabun_breakdown, fig.width = 12, fig.height = 8}
+KEGG_modules_annot_raw <- list()
+KEGG_modules_annot_raw_all_cat <- list()
+
+KEGG_module_info <- read.table("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_ko_module_links.tsv.gz",
+                               header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+
+KEGG_module_descrip <- read.table("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_module_descrip.tsv.gz",
+                                  header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+rownames(KEGG_module_descrip) <- gsub("md:", "", KEGG_module_descrip$V1)
+KEGG_module_descrip$descrip <- paste(rownames(KEGG_module_descrip) , KEGG_module_descrip$V2, sep = " - ")
+
+KEGG_module_info$V1 <- gsub("ko:", "", KEGG_module_info$V1)
+KEGG_module_info$V2 <- gsub("md:", "", KEGG_module_info$V2)
+colnames(KEGG_module_info) <- c("KO", "module")
+
+unique_KEGG_modules <- names(table(KEGG_module_info$module))
+
+for (phylotype in phylotypes) {
+  
+  KEGG_modules_annot_raw[[phylotype]] <- list()
+  
+  for (gene_category in c("cloud", "shell", "core")) {
+  
+    KEGG_modules_annot_raw[[phylotype]][[gene_category]] <- data.frame(matrix(NA, nrow = length(unique_KEGG_modules), ncol = 6))
+    rownames(KEGG_modules_annot_raw[[phylotype]][[gene_category]]) <- unique_KEGG_modules
+    colnames(KEGG_modules_annot_raw[[phylotype]][[gene_category]]) <- c("KEGG_module", "KEGG_module_descrip", "phylotype", "gene_category", "num_genes", "percent_KEGG_annot_genes")
+    KEGG_modules_annot_raw[[phylotype]][[gene_category]]$KEGG_module <- unique_KEGG_modules
+    KEGG_modules_annot_raw[[phylotype]][[gene_category]]$KEGG_module_descrip <- KEGG_module_descrip[unique_KEGG_modules, "descrip"]
+    KEGG_modules_annot_raw[[phylotype]][[gene_category]]$phylotype <- phylotype
+    
+    phylotype_category_KEGG_annot_genes <- gene_categories[[phylotype]][[gene_category]][which(gene_categories[[phylotype]][[gene_category]] %in% rownames(KEGG_annot))]
+
+    KEGG_modules_annot_raw[[phylotype]][[gene_category]]$gene_category <- gene_category
+
+    if (length(phylotype_category_KEGG_annot_genes) == 0) { next }
+    
+    phylotype_category_KEGG_annot_KOs <- KEGG_annot[phylotype_category_KEGG_annot_genes, ]
+
+    phylotype_category_KEGG_annot_modules <- KEGG_module_info[which(KEGG_module_info$KO %in% phylotype_category_KEGG_annot_KOs), "module"]
+    
+    for (KEGG_module in unique_KEGG_modules) {
+      KEGG_modules_annot_raw[[phylotype]][[gene_category]][KEGG_module, "num_genes"] <- length(grep(KEGG_module, phylotype_category_KEGG_annot_modules))
+    }
+    
+    #KEGG_modules_annot_raw[[phylotype]][[gene_category]]["Unannotated", "num_genes"] <- length(gene_categories[[phylotype]][[gene_category]]) - length(phylotype_category_KEGG_annot_genes)
+    
+    KEGG_modules_annot_raw[[phylotype]][[gene_category]]$percent_KEGG_annot_genes <- (KEGG_modules_annot_raw[[phylotype]][[gene_category]]$num_genes / sum(KEGG_modules_annot_raw[[phylotype]][[gene_category]]$num_genes)) * 100
+
+  }
+  
+  KEGG_modules_annot_raw_all_cat[[phylotype]] <- do.call(rbind, KEGG_modules_annot_raw[[phylotype]])
+}
+
+KEGG_modules_annot <- do.call(rbind, KEGG_modules_annot_raw_all_cat)
+
+KEGG_modules_annot$gene_category <- factor(KEGG_modules_annot$gene_category, levels = c("cloud", "shell", "core"))
+
+KEGG_module_max_percent <- c()
+
+for (KEGG_module in unique_KEGG_modules) {
+  KEGG_module_max_percent <- c(KEGG_module_max_percent, mean(KEGG_modules_annot[which(KEGG_modules_annot$KEGG_module == KEGG_module), "percent_KEGG_annot_genes"], na.rm = TRUE))
+}
+
+names(KEGG_module_max_percent) <- unique_KEGG_modules
+
+nonfocal_KEGG_modules <- names(sort(KEGG_module_max_percent, decreasing = TRUE))[16:length(KEGG_module_max_percent)]
+
+KEGG_modules_annot$KEGG_module_descrip_to_plot <- KEGG_modules_annot$KEGG_module_descrip
+
+KEGG_modules_annot$KEGG_module_descrip_to_plot[which(KEGG_modules_annot$KEGG_module %in% nonfocal_KEGG_modules)] <- "Other modules"
+
+
+ggplot(data = KEGG_modules_annot, aes(x = gene_category, y = percent_KEGG_annot_genes, fill = KEGG_module_descrip_to_plot)) +
+        geom_bar(stat = "identity") +
+        facet_grid(. ~ phylotype) +
+        xlab("") +
+        ylab("% of KEGG-annotated genes") +
+        scale_fill_manual(values = distinct_21_colours[1:16]) +
+        theme_bw()
+```
+
+
+### KEGG pathways
+
+```{r KEGG_pathways_phylotype_relabun_breakdown, fig.width = 10, fig.height = 8}
+KEGG_pathways_annot_raw <- list()
+KEGG_pathways_annot_raw_all_cat <- list()
+
+KEGG_pathway_info <- read.table("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_ko_pathway_links.tsv.gz",
+                               header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+
+KEGG_pathway_descrip <- read.table("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_pathway_descrip.tsv.gz",
+                                  header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+rownames(KEGG_pathway_descrip) <- gsub("path:map", "ko", KEGG_pathway_descrip$V1)
+KEGG_pathway_descrip$descrip <- paste(rownames(KEGG_pathway_descrip) , KEGG_pathway_descrip$V2, sep = " - ")
+
+KEGG_pathway_info$V1 <- gsub("ko:", "", KEGG_pathway_info$V1)
+KEGG_pathway_info <- KEGG_pathway_info[-grep("path:map", KEGG_pathway_info$V2), ]
+KEGG_pathway_info$V2 <- gsub("path:", "", KEGG_pathway_info$V2)
+colnames(KEGG_pathway_info) <- c("KO", "pathway")
+
+unique_KEGG_pathways <- names(table(KEGG_pathway_info$pathway))
+
+for (phylotype in phylotypes) {
+  
+  KEGG_pathways_annot_raw[[phylotype]] <- list()
+  
+  for (gene_category in c("cloud", "shell", "core")) {
+  
+    KEGG_pathways_annot_raw[[phylotype]][[gene_category]] <- data.frame(matrix(NA, nrow = length(unique_KEGG_pathways), ncol = 6))
+    rownames(KEGG_pathways_annot_raw[[phylotype]][[gene_category]]) <- unique_KEGG_pathways
+    colnames(KEGG_pathways_annot_raw[[phylotype]][[gene_category]]) <- c("KEGG_pathway", "KEGG_pathway_descrip", "phylotype", "gene_category", "num_genes", "percent_KEGG_annot_genes")
+    KEGG_pathways_annot_raw[[phylotype]][[gene_category]]$KEGG_pathway <- unique_KEGG_pathways
+    KEGG_pathways_annot_raw[[phylotype]][[gene_category]]$KEGG_pathway_descrip <- KEGG_pathway_descrip[unique_KEGG_pathways, "descrip"]
+    KEGG_pathways_annot_raw[[phylotype]][[gene_category]]$phylotype <- phylotype
+    
+    phylotype_category_KEGG_annot_genes <- gene_categories[[phylotype]][[gene_category]][which(gene_categories[[phylotype]][[gene_category]] %in% rownames(KEGG_annot))]
+
+    KEGG_pathways_annot_raw[[phylotype]][[gene_category]]$gene_category <- gene_category
+
+    if (length(phylotype_category_KEGG_annot_genes) == 0) { next }
+    
+    phylotype_category_KEGG_annot_KOs <- KEGG_annot[phylotype_category_KEGG_annot_genes, ]
+
+    phylotype_category_KEGG_annot_pathways <- KEGG_pathway_info[which(KEGG_pathway_info$KO %in% phylotype_category_KEGG_annot_KOs), "pathway"]
+    
+    for (KEGG_pathway in unique_KEGG_pathways) {
+      KEGG_pathways_annot_raw[[phylotype]][[gene_category]][KEGG_pathway, "num_genes"] <- length(grep(KEGG_pathway, phylotype_category_KEGG_annot_pathways))
+    }
+    
+    #KEGG_pathways_annot_raw[[phylotype]][[gene_category]]["Unannotated", "num_genes"] <- length(gene_categories[[phylotype]][[gene_category]]) - length(phylotype_category_KEGG_annot_genes)
+    
+    KEGG_pathways_annot_raw[[phylotype]][[gene_category]]$percent_KEGG_annot_genes <- (KEGG_pathways_annot_raw[[phylotype]][[gene_category]]$num_genes / sum(KEGG_pathways_annot_raw[[phylotype]][[gene_category]]$num_genes)) * 100
+
+  }
+  
+  KEGG_pathways_annot_raw_all_cat[[phylotype]] <- do.call(rbind, KEGG_pathways_annot_raw[[phylotype]])
+}
+
+KEGG_pathways_annot <- do.call(rbind, KEGG_pathways_annot_raw_all_cat)
+
+KEGG_pathways_annot$gene_category <- factor(KEGG_pathways_annot$gene_category, levels = c("cloud", "shell", "core"))
+
+KEGG_pathway_max_percent <- c()
+
+for (KEGG_pathway in unique_KEGG_pathways) {
+  KEGG_pathway_max_percent <- c(KEGG_pathway_max_percent, mean(KEGG_pathways_annot[which(KEGG_pathways_annot$KEGG_pathway == KEGG_pathway), "percent_KEGG_annot_genes"], na.rm = TRUE))
+}
+
+names(KEGG_pathway_max_percent) <- unique_KEGG_pathways
+
+nonfocal_KEGG_pathways <- names(sort(KEGG_pathway_max_percent, decreasing = TRUE))[16:length(KEGG_pathway_max_percent)]
+
+KEGG_pathways_annot$KEGG_pathway_descrip_to_plot <- KEGG_pathways_annot$KEGG_pathway_descrip
+
+KEGG_pathways_annot$KEGG_pathway_descrip_to_plot[which(KEGG_pathways_annot$KEGG_pathway %in% nonfocal_KEGG_pathways)] <- "Other pathways"
+
+
+ggplot(data = KEGG_pathways_annot, aes(x = gene_category, y = percent_KEGG_annot_genes, fill = KEGG_pathway_descrip_to_plot)) +
+        geom_bar(stat = "identity") +
+        facet_grid(. ~ phylotype) +
+        xlab("") +
+        ylab("% of KEGG-annotated genes") +
+        scale_fill_manual(values = distinct_21_colours[1:16]) +
+        theme_bw()
+```

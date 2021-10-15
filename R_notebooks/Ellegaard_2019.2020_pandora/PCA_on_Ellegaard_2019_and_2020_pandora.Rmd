@@ -1,0 +1,678 @@
+---
+title: "PCA based on pandora presence / absence"
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+
+```{r setup, include=FALSE}
+library(cowplot)
+library(DT)
+library(ggbeeswarm)
+library(ggplot2)
+library(kableExtra)
+library(knitr)
+```
+
+# Read in data
+
+```{r read_in_pandora}
+pandora_output <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_multisample.matrix",
+                             header = TRUE, sep = "\t", row.names = 1)
+rownames(pandora_output) <- gsub("\\.fa$", "", rownames(pandora_output))
+
+# Dataset samples
+Ellegaard.2019_samples <- read.table("/home/gdouglas/projects/honey_bee/Ellegaard/SRR_ids.txt", stringsAsFactors = FALSE)$V1
+Ellegaard.2020_samples <- read.table("/data1/gdouglas/projects/honey_bee/Ellegaard.2020/PRJNA598094_SRR_ids.txt", stringsAsFactors = FALSE)$V1
+
+pandora_output <- pandora_output[, c(Ellegaard.2019_samples, Ellegaard.2020_samples)]
+
+pandora_output <- pandora_output[-which(rowSums(pandora_output) == ncol(pandora_output)), ]
+```
+
+```{r read_sample_info}
+sample_names_2019 <- read.table("/home/gdouglas/projects/honey_bee/Ellegaard/PRJNA473901_SRR_to_sample.txt",
+                                header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+colnames(sample_names_2019) <- c("SRR", "sample")
+
+sample_names_2019$colony <- gsub("Y.*$", "", sample_names_2019$sample)
+
+sample_names_2019$location <- gsub("_.*$", "", sample_names_2019$sample)
+sample_names_2019$location <- gsub("^.*Y", "", sample_names_2019$location)
+
+sample_names_2019$age_raw <- gsub(".*_", "", sample_names_2019$sample)
+sample_names_2019$age <- NA
+sample_names_2019[grep("W", sample_names_2019$age_raw), "age"] <- "Old"
+sample_names_2019[grep("F", sample_names_2019$age_raw), "age"] <- "Middle-aged"
+sample_names_2019[grep("N", sample_names_2019$age_raw), "age"] <- "Young"
+
+
+sample_names_2020 <- read.table("/data1/gdouglas/projects/honey_bee/Ellegaard.2020/PRJNA598094_SRR_to_sample.txt",
+                                header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+colnames(sample_names_2020) <- c("SRR", "sample")
+
+sample_names_2020$apiary <- NA
+sample_names_2020$apiary[grep("Ai", sample_names_2020$sample)] <- "Ai"
+sample_names_2020$apiary[grep("Iu", sample_names_2020$sample)] <- "Iu"
+```
+
+# Identify major outliers based on number of genes {.tabset}
+
+## Hist
+```{r num_genes}
+hist(colSums(pandora_output), breaks = 50, xlab = "Number of genes", ylab = "Number of samples", main = "", xlim = c(0, 10000))
+```
+
+## Num genes vs depth of FASTQs input to pandora
+
+```{r old_depth_vs_pandora_num_genes}
+
+total_reads <- c()
+
+for (SRR in c(Ellegaard.2019_samples, Ellegaard.2020_samples)) {
+  wc_file <- paste("/data1/gdouglas/projects/honey_bee/filtered_fastqs/Ellegaard.2019.2020_cat_wc_output/", SRR, ".fastq.gz.wc.txt", sep = "")
+  total_reads <- c(total_reads, as.numeric(readLines(wc_file)))
+}
+
+plot(total_reads, colSums(pandora_output), xlab = "Number of input reads to pandora", ylab = "Number of genes called as present")
+
+```
+
+# PCAs {.tabset}
+
+```{r filter_out_major_outliers}
+pandora_output <- pandora_output[, -which(colSums(pandora_output) < 2000)]
+
+if (length(which(rowSums(pandora_output) == 0)) > 0) {
+ pandora_output <- pandora_output[-which(rowSums(pandora_output) == 0), ]
+}
+
+if (length(which(! Ellegaard.2019_samples %in% colnames(pandora_output))) > 0) {
+  Ellegaard.2019_samples <- Ellegaard.2019_samples[-which(! Ellegaard.2019_samples %in% colnames(pandora_output))]
+  sample_names_2019 <- sample_names_2019[-which(! sample_names_2019$SRR %in% colnames(pandora_output)), ]
+}
+
+if (length(which(! Ellegaard.2020_samples %in% colnames(pandora_output))) > 0) {
+  Ellegaard.2020_samples <- Ellegaard.2020_samples[-which(! Ellegaard.2020_samples %in% colnames(pandora_output))]
+  sample_names_2020 <- sample_names_2020[-which(! sample_names_2020$SRR %in% colnames(pandora_output)), ]
+}
+```
+
+## All genes (any phylotype) {.tabset}
+
+```{r ALL_prep}
+ALL_pandora_output <- dist(t(pandora_output), method = "binary")
+ALL_pandora_PCA <- prcomp(ALL_pandora_output, scale. = TRUE, center = TRUE)
+ALL_pandora_PCA_df <- data.frame(ALL_pandora_PCA$x)
+ALL_pandora_PCA_imp <- data.frame(summary(ALL_pandora_PCA)$importance)
+ALL_pandora_PCA_percent <- data.frame(t(ALL_pandora_PCA_imp["Proportion of Variance", ])) * 100
+ALL_pandora_PCA_percent$Proportion.of.Variance <- round(ALL_pandora_PCA_percent$Proportion.of.Variance, digits = 1)
+ALL_pandora_PCA_percent$Proportion.of.Variance <- as.character(ALL_pandora_PCA_percent$Proportion.of.Variance)
+
+# Country of origin (i.e., which paper it was from)
+ALL_pandora_PCA_df$Country <- NA
+ALL_pandora_PCA_df[Ellegaard.2019_samples, "Country"] <- "Switzerland"
+ALL_pandora_PCA_df[Ellegaard.2020_samples, "Country"] <- "Japan"
+
+
+ALL_pandora_PCA_df$Year <- NA
+ALL_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "1"), "SRR"], "Year"] <- "2019_1"
+ALL_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "2"), "SRR"], "Year"] <- "2019_2"
+ALL_pandora_PCA_df[Ellegaard.2020_samples, "Year"] <- "2020"
+
+
+ALL_pandora_PCA_df$Location <- NA
+ALL_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Dr"), "SRR"], "Location"] <- "Les Droites"
+ALL_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Gr"), "SRR"], "Location"] <- "Grammont"
+ALL_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Ai"), "SRR"], "Location"] <- "Ai"
+ALL_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Iu"), "SRR"], "Location"] <- "Iu"
+
+ALL_pandora_PCA_df$Age <- NA
+ALL_pandora_PCA_df[sample_names_2019$SRR, "Age"] <- sample_names_2019$age
+ALL_pandora_PCA_df[Ellegaard.2020_samples, "Age"] <- "Young"
+
+ALL_pandora_PCA_df$Age <- factor(ALL_pandora_PCA_df$Age, levels = c("Young", "Middle-aged", "Old"))
+
+```
+
+### Age and country
+
+```{r ALL_age_and_country, fig.width=20, fig.height = 6}
+ALL_PC1_vs_PC2_age_and_country <- ggplot(data = ALL_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", ALL_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", ALL_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+ALL_PC1_vs_PC3_age_and_country <- ggplot(data = ALL_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", ALL_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", ALL_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(ALL_PC1_vs_PC2_age_and_country, ALL_PC1_vs_PC3_age_and_country, nrow = 1, ncol = 2)
+
+```
+
+### Age and Location
+
+```{r ALL_age_and_Location, fig.width=20, fig.height = 6}
+ALL_PC1_vs_PC2_age_and_Location <- ggplot(data = ALL_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", ALL_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", ALL_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+ALL_PC1_vs_PC3_age_and_Location <- ggplot(data = ALL_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", ALL_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", ALL_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(ALL_PC1_vs_PC2_age_and_Location, ALL_PC1_vs_PC3_age_and_Location, nrow = 1, ncol = 2)
+```
+
+### Age and Year
+
+```{r ALL_age_and_Year, fig.width=20, fig.height = 6}
+ALL_PC1_vs_PC2_age_and_Year <- ggplot(data = ALL_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", ALL_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", ALL_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+ALL_PC1_vs_PC3_age_and_Year <- ggplot(data = ALL_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", ALL_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", ALL_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(ALL_PC1_vs_PC2_age_and_Year, ALL_PC1_vs_PC3_age_and_Year, nrow = 1, ncol = 2)
+```
+
+## Bifidobacterium {.tabset}
+
+```{r Bifidobacterium_prep}
+Bifidobacterium_pandora_output <- dist(t(pandora_output[grep("Bifidobacterium", rownames(pandora_output)), ]), method = "binary")
+Bifidobacterium_pandora_PCA <- prcomp(Bifidobacterium_pandora_output, scale. = TRUE, center = TRUE)
+Bifidobacterium_pandora_PCA_df <- data.frame(Bifidobacterium_pandora_PCA$x)
+Bifidobacterium_pandora_PCA_imp <- data.frame(summary(Bifidobacterium_pandora_PCA)$importance)
+Bifidobacterium_pandora_PCA_percent <- data.frame(t(Bifidobacterium_pandora_PCA_imp["Proportion of Variance", ])) * 100
+Bifidobacterium_pandora_PCA_percent$Proportion.of.Variance <- round(Bifidobacterium_pandora_PCA_percent$Proportion.of.Variance, digits = 1)
+Bifidobacterium_pandora_PCA_percent$Proportion.of.Variance <- as.character(Bifidobacterium_pandora_PCA_percent$Proportion.of.Variance)
+
+# Country of origin (i.e., which paper it was from)
+Bifidobacterium_pandora_PCA_df$Country <- NA
+Bifidobacterium_pandora_PCA_df[Ellegaard.2019_samples, "Country"] <- "Switzerland"
+Bifidobacterium_pandora_PCA_df[Ellegaard.2020_samples, "Country"] <- "Japan"
+
+
+Bifidobacterium_pandora_PCA_df$Year <- NA
+Bifidobacterium_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "1"), "SRR"], "Year"] <- "2019_1"
+Bifidobacterium_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "2"), "SRR"], "Year"] <- "2019_2"
+Bifidobacterium_pandora_PCA_df[Ellegaard.2020_samples, "Year"] <- "2020"
+
+
+Bifidobacterium_pandora_PCA_df$Location <- NA
+Bifidobacterium_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Dr"), "SRR"], "Location"] <- "Les Droites"
+Bifidobacterium_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Gr"), "SRR"], "Location"] <- "Grammont"
+Bifidobacterium_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Ai"), "SRR"], "Location"] <- "Ai"
+Bifidobacterium_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Iu"), "SRR"], "Location"] <- "Iu"
+
+Bifidobacterium_pandora_PCA_df$Age <- NA
+Bifidobacterium_pandora_PCA_df[sample_names_2019$SRR, "Age"] <- sample_names_2019$age
+Bifidobacterium_pandora_PCA_df[Ellegaard.2020_samples, "Age"] <- "Young"
+
+Bifidobacterium_pandora_PCA_df$Age <- factor(Bifidobacterium_pandora_PCA_df$Age, levels = c("Young", "Middle-aged", "Old"))
+
+```
+
+### Age and country
+
+```{r Bifidobacterium_age_and_country, fig.width=20, fig.height = 6}
+Bifidobacterium_PC1_vs_PC2_age_and_country <- ggplot(data = Bifidobacterium_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Bifidobacterium_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Bifidobacterium_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Bifidobacterium_PC1_vs_PC3_age_and_country <- ggplot(data = Bifidobacterium_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Bifidobacterium_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Bifidobacterium_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Bifidobacterium_PC1_vs_PC2_age_and_country, Bifidobacterium_PC1_vs_PC3_age_and_country, nrow = 1, ncol = 2)
+
+```
+
+### Age and Location
+
+```{r Bifidobacterium_age_and_Location, fig.width=20, fig.height = 6}
+Bifidobacterium_PC1_vs_PC2_age_and_Location <- ggplot(data = Bifidobacterium_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Bifidobacterium_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Bifidobacterium_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Bifidobacterium_PC1_vs_PC3_age_and_Location <- ggplot(data = Bifidobacterium_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Bifidobacterium_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Bifidobacterium_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Bifidobacterium_PC1_vs_PC2_age_and_Location, Bifidobacterium_PC1_vs_PC3_age_and_Location, nrow = 1, ncol = 2)
+```
+
+### Age and Year
+
+```{r Bifidobacterium_age_and_Year, fig.width=20, fig.height = 6}
+Bifidobacterium_PC1_vs_PC2_age_and_Year <- ggplot(data = Bifidobacterium_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Bifidobacterium_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Bifidobacterium_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Bifidobacterium_PC1_vs_PC3_age_and_Year <- ggplot(data = Bifidobacterium_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Bifidobacterium_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Bifidobacterium_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Bifidobacterium_PC1_vs_PC2_age_and_Year, Bifidobacterium_PC1_vs_PC3_age_and_Year, nrow = 1, ncol = 2)
+```
+
+
+## Firm4 {.tabset}
+
+```{r Firm4_prep}
+Firm4_pandora_output <- dist(t(pandora_output[grep("Firm4", rownames(pandora_output)), ]), method = "binary")
+Firm4_pandora_PCA <- prcomp(Firm4_pandora_output, scale. = TRUE, center = TRUE)
+Firm4_pandora_PCA_df <- data.frame(Firm4_pandora_PCA$x)
+Firm4_pandora_PCA_imp <- data.frame(summary(Firm4_pandora_PCA)$importance)
+Firm4_pandora_PCA_percent <- data.frame(t(Firm4_pandora_PCA_imp["Proportion of Variance", ])) * 100
+Firm4_pandora_PCA_percent$Proportion.of.Variance <- round(Firm4_pandora_PCA_percent$Proportion.of.Variance, digits = 1)
+Firm4_pandora_PCA_percent$Proportion.of.Variance <- as.character(Firm4_pandora_PCA_percent$Proportion.of.Variance)
+
+# Country of origin (i.e., which paper it was from)
+Firm4_pandora_PCA_df$Country <- NA
+Firm4_pandora_PCA_df[Ellegaard.2019_samples, "Country"] <- "Switzerland"
+Firm4_pandora_PCA_df[Ellegaard.2020_samples, "Country"] <- "Japan"
+
+
+Firm4_pandora_PCA_df$Year <- NA
+Firm4_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "1"), "SRR"], "Year"] <- "2019_1"
+Firm4_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "2"), "SRR"], "Year"] <- "2019_2"
+Firm4_pandora_PCA_df[Ellegaard.2020_samples, "Year"] <- "2020"
+
+
+Firm4_pandora_PCA_df$Location <- NA
+Firm4_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Dr"), "SRR"], "Location"] <- "Les Droites"
+Firm4_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Gr"), "SRR"], "Location"] <- "Grammont"
+Firm4_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Ai"), "SRR"], "Location"] <- "Ai"
+Firm4_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Iu"), "SRR"], "Location"] <- "Iu"
+
+Firm4_pandora_PCA_df$Age <- NA
+Firm4_pandora_PCA_df[sample_names_2019$SRR, "Age"] <- sample_names_2019$age
+Firm4_pandora_PCA_df[Ellegaard.2020_samples, "Age"] <- "Young"
+
+Firm4_pandora_PCA_df$Age <- factor(Firm4_pandora_PCA_df$Age, levels = c("Young", "Middle-aged", "Old"))
+
+```
+
+### Age and country
+
+```{r Firm4_age_and_country, fig.width=20, fig.height = 6}
+Firm4_PC1_vs_PC2_age_and_country <- ggplot(data = Firm4_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm4_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Firm4_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Firm4_PC1_vs_PC3_age_and_country <- ggplot(data = Firm4_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm4_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Firm4_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Firm4_PC1_vs_PC2_age_and_country, Firm4_PC1_vs_PC3_age_and_country, nrow = 1, ncol = 2)
+
+```
+
+### Age and Location
+
+```{r Firm4_age_and_Location, fig.width=20, fig.height = 6}
+Firm4_PC1_vs_PC2_age_and_Location <- ggplot(data = Firm4_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm4_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Firm4_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Firm4_PC1_vs_PC3_age_and_Location <- ggplot(data = Firm4_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm4_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Firm4_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Firm4_PC1_vs_PC2_age_and_Location, Firm4_PC1_vs_PC3_age_and_Location, nrow = 1, ncol = 2)
+```
+
+### Age and Year
+
+```{r Firm4_age_and_Year, fig.width=20, fig.height = 6}
+Firm4_PC1_vs_PC2_age_and_Year <- ggplot(data = Firm4_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm4_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Firm4_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Firm4_PC1_vs_PC3_age_and_Year <- ggplot(data = Firm4_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm4_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Firm4_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Firm4_PC1_vs_PC2_age_and_Year, Firm4_PC1_vs_PC3_age_and_Year, nrow = 1, ncol = 2)
+```
+
+
+
+
+## Firm5 {.tabset}
+
+```{r Firm5_prep}
+Firm5_pandora_output <- dist(t(pandora_output[grep("Firm5", rownames(pandora_output)), ]), method = "binary")
+Firm5_pandora_PCA <- prcomp(Firm5_pandora_output, scale. = TRUE, center = TRUE)
+Firm5_pandora_PCA_df <- data.frame(Firm5_pandora_PCA$x)
+Firm5_pandora_PCA_imp <- data.frame(summary(Firm5_pandora_PCA)$importance)
+Firm5_pandora_PCA_percent <- data.frame(t(Firm5_pandora_PCA_imp["Proportion of Variance", ])) * 100
+Firm5_pandora_PCA_percent$Proportion.of.Variance <- round(Firm5_pandora_PCA_percent$Proportion.of.Variance, digits = 1)
+Firm5_pandora_PCA_percent$Proportion.of.Variance <- as.character(Firm5_pandora_PCA_percent$Proportion.of.Variance)
+
+# Country of origin (i.e., which paper it was from)
+Firm5_pandora_PCA_df$Country <- NA
+Firm5_pandora_PCA_df[Ellegaard.2019_samples, "Country"] <- "Switzerland"
+Firm5_pandora_PCA_df[Ellegaard.2020_samples, "Country"] <- "Japan"
+
+
+Firm5_pandora_PCA_df$Year <- NA
+Firm5_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "1"), "SRR"], "Year"] <- "2019_1"
+Firm5_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "2"), "SRR"], "Year"] <- "2019_2"
+Firm5_pandora_PCA_df[Ellegaard.2020_samples, "Year"] <- "2020"
+
+
+Firm5_pandora_PCA_df$Location <- NA
+Firm5_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Dr"), "SRR"], "Location"] <- "Les Droites"
+Firm5_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Gr"), "SRR"], "Location"] <- "Grammont"
+Firm5_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Ai"), "SRR"], "Location"] <- "Ai"
+Firm5_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Iu"), "SRR"], "Location"] <- "Iu"
+
+Firm5_pandora_PCA_df$Age <- NA
+Firm5_pandora_PCA_df[sample_names_2019$SRR, "Age"] <- sample_names_2019$age
+Firm5_pandora_PCA_df[Ellegaard.2020_samples, "Age"] <- "Young"
+
+Firm5_pandora_PCA_df$Age <- factor(Firm5_pandora_PCA_df$Age, levels = c("Young", "Middle-aged", "Old"))
+
+```
+
+### Age and country
+
+```{r Firm5_age_and_country, fig.width=20, fig.height = 6}
+Firm5_PC1_vs_PC2_age_and_country <- ggplot(data = Firm5_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm5_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Firm5_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Firm5_PC1_vs_PC3_age_and_country <- ggplot(data = Firm5_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm5_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Firm5_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Firm5_PC1_vs_PC2_age_and_country, Firm5_PC1_vs_PC3_age_and_country, nrow = 1, ncol = 2)
+
+```
+
+### Age and Location
+
+```{r Firm5_age_and_Location, fig.width=20, fig.height = 6}
+Firm5_PC1_vs_PC2_age_and_Location <- ggplot(data = Firm5_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm5_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Firm5_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Firm5_PC1_vs_PC3_age_and_Location <- ggplot(data = Firm5_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm5_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Firm5_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Firm5_PC1_vs_PC2_age_and_Location, Firm5_PC1_vs_PC3_age_and_Location, nrow = 1, ncol = 2)
+```
+
+### Age and Year
+
+```{r Firm5_age_and_Year, fig.width=20, fig.height = 6}
+Firm5_PC1_vs_PC2_age_and_Year <- ggplot(data = Firm5_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm5_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Firm5_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Firm5_PC1_vs_PC3_age_and_Year <- ggplot(data = Firm5_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Firm5_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Firm5_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Firm5_PC1_vs_PC2_age_and_Year, Firm5_PC1_vs_PC3_age_and_Year, nrow = 1, ncol = 2)
+```
+
+
+
+
+## Gilliamella {.tabset}
+
+```{r Gilliamella_prep}
+Gilliamella_pandora_output <- dist(t(pandora_output[grep("Gilli", rownames(pandora_output)), ]), method = "binary")
+Gilliamella_pandora_PCA <- prcomp(Gilliamella_pandora_output, scale. = TRUE, center = TRUE)
+Gilliamella_pandora_PCA_df <- data.frame(Gilliamella_pandora_PCA$x)
+Gilliamella_pandora_PCA_imp <- data.frame(summary(Gilliamella_pandora_PCA)$importance)
+Gilliamella_pandora_PCA_percent <- data.frame(t(Gilliamella_pandora_PCA_imp["Proportion of Variance", ])) * 100
+Gilliamella_pandora_PCA_percent$Proportion.of.Variance <- round(Gilliamella_pandora_PCA_percent$Proportion.of.Variance, digits = 1)
+Gilliamella_pandora_PCA_percent$Proportion.of.Variance <- as.character(Gilliamella_pandora_PCA_percent$Proportion.of.Variance)
+
+# Country of origin (i.e., which paper it was from)
+Gilliamella_pandora_PCA_df$Country <- NA
+Gilliamella_pandora_PCA_df[Ellegaard.2019_samples, "Country"] <- "Switzerland"
+Gilliamella_pandora_PCA_df[Ellegaard.2020_samples, "Country"] <- "Japan"
+
+
+Gilliamella_pandora_PCA_df$Year <- NA
+Gilliamella_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "1"), "SRR"], "Year"] <- "2019_1"
+Gilliamella_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "2"), "SRR"], "Year"] <- "2019_2"
+Gilliamella_pandora_PCA_df[Ellegaard.2020_samples, "Year"] <- "2020"
+
+
+Gilliamella_pandora_PCA_df$Location <- NA
+Gilliamella_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Dr"), "SRR"], "Location"] <- "Les Droites"
+Gilliamella_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Gr"), "SRR"], "Location"] <- "Grammont"
+Gilliamella_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Ai"), "SRR"], "Location"] <- "Ai"
+Gilliamella_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Iu"), "SRR"], "Location"] <- "Iu"
+
+Gilliamella_pandora_PCA_df$Age <- NA
+Gilliamella_pandora_PCA_df[sample_names_2019$SRR, "Age"] <- sample_names_2019$age
+Gilliamella_pandora_PCA_df[Ellegaard.2020_samples, "Age"] <- "Young"
+
+Gilliamella_pandora_PCA_df$Age <- factor(Gilliamella_pandora_PCA_df$Age, levels = c("Young", "Middle-aged", "Old"))
+
+```
+
+### Age and country
+
+```{r Gilliamella_age_and_country, fig.width=20, fig.height = 6}
+Gilliamella_PC1_vs_PC2_age_and_country <- ggplot(data = Gilliamella_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Gilliamella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Gilliamella_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Gilliamella_PC1_vs_PC3_age_and_country <- ggplot(data = Gilliamella_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Gilliamella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Gilliamella_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Gilliamella_PC1_vs_PC2_age_and_country, Gilliamella_PC1_vs_PC3_age_and_country, nrow = 1, ncol = 2)
+
+```
+
+### Age and Location
+
+```{r Gilliamella_age_and_Location, fig.width=20, fig.height = 6}
+Gilliamella_PC1_vs_PC2_age_and_Location <- ggplot(data = Gilliamella_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Gilliamella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Gilliamella_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Gilliamella_PC1_vs_PC3_age_and_Location <- ggplot(data = Gilliamella_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Gilliamella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Gilliamella_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Gilliamella_PC1_vs_PC2_age_and_Location, Gilliamella_PC1_vs_PC3_age_and_Location, nrow = 1, ncol = 2)
+```
+
+### Age and Year
+
+```{r Gilliamella_age_and_Year, fig.width=20, fig.height = 6}
+Gilliamella_PC1_vs_PC2_age_and_Year <- ggplot(data = Gilliamella_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Gilliamella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Gilliamella_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Gilliamella_PC1_vs_PC3_age_and_Year <- ggplot(data = Gilliamella_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Gilliamella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Gilliamella_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Gilliamella_PC1_vs_PC2_age_and_Year, Gilliamella_PC1_vs_PC3_age_and_Year, nrow = 1, ncol = 2)
+```
+
+
+## Snodgrassella {.tabset}
+
+```{r Snodgrassella_prep}
+Snodgrassella_pandora_output <- dist(t(pandora_output[grep("Snod", rownames(pandora_output)), ]), method = "binary")
+Snodgrassella_pandora_PCA <- prcomp(Snodgrassella_pandora_output, scale. = TRUE, center = TRUE)
+Snodgrassella_pandora_PCA_df <- data.frame(Snodgrassella_pandora_PCA$x)
+Snodgrassella_pandora_PCA_imp <- data.frame(summary(Snodgrassella_pandora_PCA)$importance)
+Snodgrassella_pandora_PCA_percent <- data.frame(t(Snodgrassella_pandora_PCA_imp["Proportion of Variance", ])) * 100
+Snodgrassella_pandora_PCA_percent$Proportion.of.Variance <- round(Snodgrassella_pandora_PCA_percent$Proportion.of.Variance, digits = 1)
+Snodgrassella_pandora_PCA_percent$Proportion.of.Variance <- as.character(Snodgrassella_pandora_PCA_percent$Proportion.of.Variance)
+
+# Country of origin (i.e., which paper it was from)
+Snodgrassella_pandora_PCA_df$Country <- NA
+Snodgrassella_pandora_PCA_df[Ellegaard.2019_samples, "Country"] <- "Switzerland"
+Snodgrassella_pandora_PCA_df[Ellegaard.2020_samples, "Country"] <- "Japan"
+
+
+Snodgrassella_pandora_PCA_df$Year <- NA
+Snodgrassella_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "1"), "SRR"], "Year"] <- "2019_1"
+Snodgrassella_pandora_PCA_df[sample_names_2019[which(sample_names_2019$location == "2"), "SRR"], "Year"] <- "2019_2"
+Snodgrassella_pandora_PCA_df[Ellegaard.2020_samples, "Year"] <- "2020"
+
+
+Snodgrassella_pandora_PCA_df$Location <- NA
+Snodgrassella_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Dr"), "SRR"], "Location"] <- "Les Droites"
+Snodgrassella_pandora_PCA_df[sample_names_2019[which(sample_names_2019$colony == "Gr"), "SRR"], "Location"] <- "Grammont"
+Snodgrassella_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Ai"), "SRR"], "Location"] <- "Ai"
+Snodgrassella_pandora_PCA_df[sample_names_2020[which(sample_names_2020$apiary == "Iu"), "SRR"], "Location"] <- "Iu"
+
+Snodgrassella_pandora_PCA_df$Age <- NA
+Snodgrassella_pandora_PCA_df[sample_names_2019$SRR, "Age"] <- sample_names_2019$age
+Snodgrassella_pandora_PCA_df[Ellegaard.2020_samples, "Age"] <- "Young"
+
+Snodgrassella_pandora_PCA_df$Age <- factor(Snodgrassella_pandora_PCA_df$Age, levels = c("Young", "Middle-aged", "Old"))
+
+```
+
+### Age and country
+
+```{r Snodgrassella_age_and_country, fig.width=20, fig.height = 6}
+Snodgrassella_PC1_vs_PC2_age_and_country <- ggplot(data = Snodgrassella_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Snodgrassella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Snodgrassella_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Snodgrassella_PC1_vs_PC3_age_and_country <- ggplot(data = Snodgrassella_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Country, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Snodgrassella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Snodgrassella_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Snodgrassella_PC1_vs_PC2_age_and_country, Snodgrassella_PC1_vs_PC3_age_and_country, nrow = 1, ncol = 2)
+
+```
+
+### Age and Location
+
+```{r Snodgrassella_age_and_Location, fig.width=20, fig.height = 6}
+Snodgrassella_PC1_vs_PC2_age_and_Location <- ggplot(data = Snodgrassella_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Snodgrassella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Snodgrassella_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Snodgrassella_PC1_vs_PC3_age_and_Location <- ggplot(data = Snodgrassella_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Location, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Snodgrassella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Snodgrassella_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Snodgrassella_PC1_vs_PC2_age_and_Location, Snodgrassella_PC1_vs_PC3_age_and_Location, nrow = 1, ncol = 2)
+```
+
+### Age and Year
+
+```{r Snodgrassella_age_and_Year, fig.width=20, fig.height = 6}
+Snodgrassella_PC1_vs_PC2_age_and_Year <- ggplot(data = Snodgrassella_pandora_PCA_df, aes(x = PC1, y = PC2, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Snodgrassella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC2 (", Snodgrassella_pandora_PCA_percent["PC2", 1], "%)", sep = ""))
+
+Snodgrassella_PC1_vs_PC3_age_and_Year <- ggplot(data = Snodgrassella_pandora_PCA_df, aes(x = PC1, y = PC3, shape = Year, colour = Age)) +
+                                          geom_point(size = 5) +
+                                          theme_bw() +
+                                          xlab(paste("PC1 (", Snodgrassella_pandora_PCA_percent["PC1", 1], "%)", sep = "")) +
+                                          ylab(paste("PC3 (", Snodgrassella_pandora_PCA_percent["PC3", 1], "%)", sep = ""))
+
+plot_grid(Snodgrassella_PC1_vs_PC2_age_and_Year, Snodgrassella_PC1_vs_PC3_age_and_Year, nrow = 1, ncol = 2)
+```
+
+
+
+
+# Session info {.tabset}
+
+## Hide
+
+## Show
+
+```{r session_info}
+sessionInfo()
+```
