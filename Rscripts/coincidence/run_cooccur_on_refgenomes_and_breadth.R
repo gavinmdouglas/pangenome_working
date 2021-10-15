@@ -26,12 +26,13 @@ Gilliamella_all_unique_hits <- Gilliamella_all_unique_hits[-which(duplicated(Gil
 
 # Confirm that these genes co-occur in the actual data
 Gilliamella_and_Gilliamella_present_noncore <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/panaroo_breadth_coverage/Gilliamella_and_Snodgrassella_present_noncore.rds")
-Gilliamella_and_Gilliamella_present_noncore <- Gilliamella_and_Gilliamella_present_noncore[-which(rowSums(Gilliamella_and_Gilliamella_present_noncore) == 0), ]
-Gilliamella_and_Gilliamella_present_noncore <- Gilliamella_and_Gilliamella_present_noncore[-which(rowSums(Gilliamella_and_Gilliamella_present_noncore) == 74), ]
 
 presence_cutoff <- 0.5
 Gilliamella_and_Gilliamella_present_noncore[Gilliamella_and_Gilliamella_present_noncore >= presence_cutoff] <- 1
 Gilliamella_and_Gilliamella_present_noncore[Gilliamella_and_Gilliamella_present_noncore < presence_cutoff] <- 0
+
+Gilliamella_and_Gilliamella_present_noncore <- Gilliamella_and_Gilliamella_present_noncore[-which(rowSums(Gilliamella_and_Gilliamella_present_noncore) == 0), ]
+Gilliamella_and_Gilliamella_present_noncore <- Gilliamella_and_Gilliamella_present_noncore[-which(rowSums(Gilliamella_and_Gilliamella_present_noncore) == 74), ]
 
 Ellegaard.2019_samples <- read.table("/home/gdouglas/projects/honey_bee/Ellegaard/SRR_ids.txt", stringsAsFactors = FALSE)$V1
 Ellegaard.2020_samples <- read.table("/data1/gdouglas/projects/honey_bee/Ellegaard.2020/PRJNA598094_SRR_ids.txt", stringsAsFactors = FALSE)$V1
@@ -105,24 +106,25 @@ Snodgrassella_all_unique_hits <- c(Snodgrassella_result.cooccur_df$gene1, Snodgr
 Snodgrassella_all_unique_hits <- Snodgrassella_all_unique_hits[-which(duplicated(Snodgrassella_all_unique_hits))]
 
 # Confirm that these genes co-occur in the actual data
-Snodgrassella_and_Snodgrassella_present_noncore <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/panaroo_breadth_coverage/Gilliamella_and_Snodgrassella_present_noncore.rds")
-Snodgrassella_and_Snodgrassella_present_noncore <- Snodgrassella_and_Snodgrassella_present_noncore[-which(rowSums(Snodgrassella_and_Snodgrassella_present_noncore) == 0), ]
-Snodgrassella_and_Snodgrassella_present_noncore <- Snodgrassella_and_Snodgrassella_present_noncore[-which(rowSums(Snodgrassella_and_Snodgrassella_present_noncore) == 74), ]
+Gilliamella_and_Snodgrassella_present_noncore <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/panaroo_breadth_coverage/Gilliamella_and_Snodgrassella_present_noncore.rds")
 
 presence_cutoff <- 0.5
-Snodgrassella_and_Snodgrassella_present_noncore[Snodgrassella_and_Snodgrassella_present_noncore >= presence_cutoff] <- 1
-Snodgrassella_and_Snodgrassella_present_noncore[Snodgrassella_and_Snodgrassella_present_noncore < presence_cutoff] <- 0
+Gilliamella_and_Snodgrassella_present_noncore[Gilliamella_and_Snodgrassella_present_noncore >= presence_cutoff] <- 1
+Gilliamella_and_Snodgrassella_present_noncore[Gilliamella_and_Snodgrassella_present_noncore < presence_cutoff] <- 0
+
+Gilliamella_and_Snodgrassella_present_noncore <- Gilliamella_and_Snodgrassella_present_noncore[-which(rowSums(Gilliamella_and_Snodgrassella_present_noncore) == 0), ]
+Gilliamella_and_Snodgrassella_present_noncore <- Gilliamella_and_Snodgrassella_present_noncore[-which(rowSums(Gilliamella_and_Snodgrassella_present_noncore) == 74), ]
 
 Ellegaard.2019_samples <- read.table("/home/gdouglas/projects/honey_bee/Ellegaard/SRR_ids.txt", stringsAsFactors = FALSE)$V1
 Ellegaard.2020_samples <- read.table("/data1/gdouglas/projects/honey_bee/Ellegaard.2020/PRJNA598094_SRR_ids.txt", stringsAsFactors = FALSE)$V1
 
-Snodgrassella_and_Snodgrassella_present_noncore <- Snodgrassella_and_Snodgrassella_present_noncore[, c(Ellegaard.2019_samples, Ellegaard.2020_samples)]
+Gilliamella_and_Snodgrassella_present_noncore <- Gilliamella_and_Snodgrassella_present_noncore[, c(Ellegaard.2019_samples, Ellegaard.2020_samples)]
 
 strata_vec <- c(rep("Switzerland", length(Ellegaard.2019_samples)), rep("Japan", length(Ellegaard.2020_samples)))
 
-Snodgrassella_breadth_events <- discover.matrix(Snodgrassella_and_Snodgrassella_present_noncore, strata = strata_vec)
+Snodgrassella_breadth_events <- discover.matrix(Gilliamella_and_Snodgrassella_present_noncore, strata = strata_vec)
 
-Snodgrassella_breadth_events_cooccur <- pairwise.discover.test(Snodgrassella_breadth_events[rownames(Snodgrassella_and_Snodgrassella_present_noncore) %in% Snodgrassella_all_unique_hits, ], fdr.method = "DBH", alternative = "greater")
+Snodgrassella_breadth_events_cooccur <- pairwise.discover.test(Snodgrassella_breadth_events[rownames(Gilliamella_and_Snodgrassella_present_noncore) %in% Snodgrassella_all_unique_hits, ], fdr.method = "DBH", alternative = "greater")
 Snodgrassella_breadth_events_cooccur_df <- as.data.frame(Snodgrassella_breadth_events_cooccur, q.threshold = 1)
 
 

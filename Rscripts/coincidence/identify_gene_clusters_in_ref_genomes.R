@@ -9,6 +9,8 @@ identify_coccuring_gene_clusters <- function(breadth_df) {
   
   for (i in 1:nrow(breadth_df)) {
     
+    if (breadth_df[i, "p.value"] >= 0.05) { next }
+    
     gene1 <- breadth_df[i, "gene1"]
     gene2 <- breadth_df[i, "gene2"]
     
