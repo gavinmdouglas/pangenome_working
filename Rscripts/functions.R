@@ -7,7 +7,8 @@ read_in_breadth_files <- function(in_path, pattern, roary_formatted_pangenome) {
   
   input_breadth_by_sample <- lapply(input_breadth_files, function(x) { read.table(x, header = FALSE, sep = "\t", row.names = 1, stringsAsFactors = FALSE) })
   input_samples <- gsub(paste(in_path, "/", sep = ""), "", input_breadth_files)
-  input_samples <- gsub("\\..*\\.merged.nonparalog.breadth.bedGraph.gz", "", input_samples)
+  #input_samples <- gsub("\\..*\\.merged.nonparalog.breadth.bedGraph.gz", "", input_samples)
+  input_samples <- gsub("\\.breadth.bedGraph.gz", "", input_samples)
   names(input_breadth_by_sample) <- input_samples
   
   input_breadth_by_sample[[1]]$sample <- input_samples[1]
@@ -79,7 +80,7 @@ read_in_depth_files <- function(in_path, pattern, roary_formatted_pangenome) {
   
   input_depth_by_sample <- lapply(input_depth_files, function(x) { read.table(x, header = FALSE, sep = "\t", row.names = 1, stringsAsFactors = FALSE) })
   input_samples <- gsub(paste(in_path, "/", sep = ""), "", input_depth_files)
-  input_samples <- gsub("\\..*\\.merged.nonparalog.mean.bedGraph.gz", "", input_samples)
+  input_samples <- gsub("\\.mean.bedGraph.gz", "", input_samples)
   names(input_depth_by_sample) <- input_samples
   
   input_depth_by_sample[[1]]$sample <- input_samples[1]
@@ -139,3 +140,121 @@ read_in_depth_files <- function(in_path, pattern, roary_formatted_pangenome) {
               unique_genes = input_unique_genes))
   
 }
+
+
+
+read_KO_pathway_map <- function(filename, min_num_funcs = 1) {
+  
+  KO_pathway_map <- read.table(filename, header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+  
+  KO_pathway_map$V1 <- gsub("ko:", "", KO_pathway_map$V1)
+  
+  KO_pathway_map <- KO_pathway_map[-grep("path:map", KO_pathway_map$V2), ]
+  
+  KO_pathway_map$V2 <- gsub("path:", "", KO_pathway_map$V2)
+  
+  pathway_to_KO <- list()
+  
+  all_pathways <- KO_pathway_map$V2
+  all_pathways <- all_pathways[-which(duplicated(all_pathways))]
+  
+  for (pathway in all_pathways) {
+    pathway_funcs <- sort(unique(KO_pathway_map[which(KO_pathway_map$V2 == pathway), "V1"]))
+    
+    if (length(pathway_funcs) > min_num_funcs) {
+      pathway_to_KO[[pathway]] <- pathway_funcs
+    }
+    
+  }
+  
+  return(pathway_to_KO)
+}
+
+
+read_KO_module_map <- function(filename, min_num_funcs=1) {
+  
+  KO_module_map <- read.table(filename, header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+  
+  KO_module_map$V1 <- gsub("ko:", "", KO_module_map$V1)
+  
+  KO_module_map$V2 <- gsub("md:", "", KO_module_map$V2)
+  
+  module_to_KO <- list()
+  
+  all_modules <- KO_module_map$V2
+  all_modules <- all_modules[-which(duplicated(all_modules))]
+  
+  for (module in all_modules) {
+    module_funcs <- sort(unique(KO_module_map[which(KO_module_map$V2 == module), "V1"]))
+    
+    if (length(module_funcs) > min_num_funcs) {
+      module_to_KO[[module]] <- module_funcs
+    }
+  }
+  
+  return(module_to_KO)
+}
+
+
+
+test_for_enriched_gene_families <- function(gene_set, background_set, min_count_in_background = 1) {
+  
+  gene_set_multi_i <- grep(",", gene_set)
+  if (length(gene_set_multi_i) > 0) {
+    
+    gene_set_multi <- gene_set[gene_set_multi_i]
+    gene_set <- gene_set[-gene_set_multi_i]
+    
+    for (multi_gene in gene_set_multi) {
+      gene_set <- c(gene_set, str_split(multi_gene, ",")[[1]])
+    }
+    
+  }
+  
+  background_set_multi_i <- grep(",", background_set)
+  if (length(background_set_multi_i) > 0) {
+    
+    background_set_multi <- background_set[background_set_multi_i]
+    background_set <- background_set[-background_set_multi_i]
+    
+    for (multi_background_gene in background_set_multi) {
+      background_set <- c(background_set, str_split(multi_background_gene, ",")[[1]])
+    }
+    
+  }
+  
+  background_set_breakdown <- table(background_set)
+  
+  gene_families_to_test <- names(background_set_breakdown)[which(background_set_breakdown >= min_count_in_background)]
+  
+  if (length(gene_families_to_test) == 0) { return(NA) }
+  
+  fisher_test_p <- c()
+  fisher_test_or <- c()
+  
+  for (gene_family in gene_families_to_test) {
+    gene_set_gene_family_count <- length(which(gene_set == gene_family))
+    gene_set_non_gene_family_count <- length(which(gene_set != gene_family)) 
+    background_set_family_count <- length(which(background_set == gene_family)) 
+    background_set_non_family_count <- length(which(background_set != gene_family)) 
+    
+    fisher_test_output <- fisher.test(matrix(c(gene_set_gene_family_count, gene_set_non_gene_family_count,
+                                               background_set_family_count, background_set_non_family_count),
+                                             ncol = 2))
+    
+    fisher_test_p <- c(fisher_test_p, fisher_test_output$p.value)
+    fisher_test_or <- c(fisher_test_or, fisher_test_output$estimate)
+    
+  }
+  
+  names(fisher_test_p) <- gene_families_to_test
+  names(fisher_test_or) <- gene_families_to_test
+  
+  fisher_test_fdr <- p.adjust(fisher_test_p, "BH")
+  
+  return(list(fisher_p=fisher_test_p,
+              fisher_BH=fisher_test_fdr,
+              fisher_or=fisher_test_or))
+  
+}
+

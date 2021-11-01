@@ -1,12 +1,6 @@
-### Remove samples with insufficient coverage per genus from the input file for pandora.
+### Call core genes for each phylotype and make a single table with all genes mapped to.
 
 rm(list = ls(all.names = TRUE))
-
-pandora_output <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_multisample.matrix",
-                             header = TRUE, sep = "\t", row.names = 1)
-rownames(pandora_output) <- gsub("\\.fa$", "", rownames(pandora_output))
-
-# Identify core genes
 
 core_genes <- list()
 
@@ -39,37 +33,16 @@ Snodgrassella_panaroo <- read.table("/data1/gdouglas/projects/honey_bee/ref_geno
 rownames(Snodgrassella_panaroo) <- paste("Snodgrassella", Snodgrassella_panaroo$Gene, sep = "_")
 core_genes[["Snodgrassella"]] <- rownames(Snodgrassella_panaroo)[which(Snodgrassella_panaroo$No..isolates >= 51)]
 
-all_cores_genes <- c(core_genes$Bifidobacterium, core_genes$Firm4, core_genes$Firm5, core_genes$Gilliamella, core_genes$Snodgrassella)
+all_core_genes <- c(core_genes$Bifidobacterium, core_genes$Firm4, core_genes$Firm5, core_genes$Gilliamella, core_genes$Snodgrassella)
 
 
-# Table representing % of core genes called as present per phylotype per sample.
-core_gene_coverage <- data.frame(matrix(NA, ncol = 5, nrow = 74))
-colnames(core_gene_coverage) <- c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")
-rownames(core_gene_coverage) <- colnames(pandora_output)
+# Combine all panaroo tables into single master dataframe
+all_panaroo <- rbind(Bifidobacterium_panaroo[, c(1:14)], Firm4_panaroo[, c(1:14)])
+all_panaroo <- rbind(all_panaroo, Firm5_panaroo[, c(1:14)])
+all_panaroo <- rbind(all_panaroo, Gilliamella_panaroo[, c(1:14)])
+all_panaroo <- rbind(all_panaroo, Snodgrassella_panaroo[, c(1:14)])
 
-for (phylotype in colnames(core_gene_coverage)) {
-  for (samplename in rownames(core_gene_coverage)) {
-    core_gene_coverage[samplename, phylotype] <- (length(which(pandora_output[core_genes[[phylotype]], samplename] == 1)) / length(core_genes[[phylotype]])) * 100
-  }   
-}
+panaroo_summary <- list(core_genes = all_core_genes, panaroo_all_phylotypes = all_panaroo)
 
-max_coverage_per_sample <- apply(core_gene_coverage, 1, max, na.rm = TRUE)
-
-# Remove three obvious outliers:
-plot(max_coverage_per_sample, colSums(pandora_output))
-
-colnames(pandora_output)[which(colSums(pandora_output) < 2000)]
-
-pandora_output_filt <- pandora_output[, -which(colSums(pandora_output) < 2000)]
-
-write.table(x = pandora_output_filt,
-            file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_multisample.filt.matrix",
-            sep = "\t", row.names = TRUE, col.names = NA, quote = FALSE)
-
-
-pandora_output_filt_noncore <- pandora_output_filt[-which(rownames(pandora_output_filt) %in% all_cores_genes), ]
-
-write.table(x = pandora_output_filt_noncore,
-            file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_multisample.filt.noncore.matrix",
-            sep = "\t", row.names = TRUE, col.names = NA, quote = FALSE)
+saveRDS(object = panaroo_summary, file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/combined_panaroo_and_core_genes.rds")
 
