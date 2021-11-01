@@ -143,7 +143,7 @@ par(mfrow=c(1,1))
 
 ## For one sample (SRR7287243) compare depth and coverage of genes that intersect vs those that don't
 
-```{r one_sample_depth_compare, fig.width = 8, fig.height = 6}
+```{r one_sample_depth_compare, fig.width = 10, fig.height = 6}
 Gilli_mean_depth <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/panaroo_breadth_coverage/Gilliamella_mean_depth_per_site.rds")
 
 SRR <- "SRR7287243"
@@ -186,7 +186,7 @@ par(mfrow = c(1, 1))
 
 ## Bifidobacterium
 
-```{r Bifidobacterium_core_gene_evaluate, fig.width=4, fig.height=4}
+```{r Bifidobacterium_core_gene_evaluate, fig.width=6, fig.height=6}
 Bifidobacterium_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Bifidobacterium/gene_presence_absence_roary.csv"
 
 Bifidobacterium_panaroo_out <- read.table(Bifidobacterium_path_to_panaroo,
@@ -210,30 +210,30 @@ abline(a = length(Bifidobacterium_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
 
 ## Firm4
 
-```{r Firm4_core_gene_evaluate, fig.width=4, fig.height=4}
+```{r Firm4_core_gene_evaluate, fig.width=6, fig.height=6}
 Firm4_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Firm4/gene_presence_absence_roary.csv.gz"
 
 Firm4_panaroo_out <- read.table(Firm4_path_to_panaroo,
                                           header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
 rownames(Firm4_panaroo_out) <- paste("Firm4", rownames(Firm4_panaroo_out), sep = "_")
 
-Firm4_panaroo_core_genes <- rownames(Firm4_panaroo_out)[which(Firm4_panaroo_out$No..isolates >= 6)]
+Firm4_panaroo_core_genes <- rownames(Firm4_panaroo_out)[which(Firm4_panaroo_out$No..isolates >= 4)]
 prop_core_gene <- colSums(pandora_output[Firm4_panaroo_core_genes, ]) / colSums(pandora_output[grep("Firm4", rownames(Firm4_panaroo_out)), ])
 #colSums(pandora_output[grep("Firm4", rownames(Firm4_panaroo_out)), ])
 
 plot(colSums(pandora_output[grep("Firm4", rownames(Firm4_panaroo_out)), ]),
-     colSums(pandora_output[Firm4_panaroo_core_genes, ]),
-     ylim = c(0, 50),
+     colSums(pandora_output[Firm4_panaroo_core_genes, ], na.rm = TRUE),
+     ylim = c(0, 325),
      xlim = c(0, 4000),
      xlab = "Total Firm4 genes",
-     ylab = "Total core genes identified",
-     main = "pandora - Firm4")
+     ylab = "Total (very soft) core genes identified",
+     main = "pandora - Firm4 (VERY SOFT)")
 abline(a = length(Firm4_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
 ```
 
 ## Firm5
 
-```{r Firm5_core_gene_evaluate, fig.width=4, fig.height=4}
+```{r Firm5_core_gene_evaluate, fig.width=6, fig.height=6}
 Firm5_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only//Firm5/gene_presence_absence_roary.csv"
 
 Firm5_panaroo_out <- read.table(Firm5_path_to_panaroo,
@@ -256,7 +256,7 @@ abline(a = length(Firm5_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
 
 ## Gilliamella
 
-```{r Gilliamella_core_gene_evaluate, fig.width=4, fig.height=4}
+```{r Gilliamella_core_gene_evaluate, fig.width=10, fig.height=4}
 Gilliamella_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Gilliamella/gene_presence_absence_roary.csv"
 
 Gilliamella_panaroo_out <- read.table(Gilliamella_path_to_panaroo,
@@ -270,7 +270,7 @@ prop_core_gene <- colSums(pandora_output[Gilliamella_panaroo_core_genes, ]) / co
 breadth_core_genes_present <- Gilliamella_panaroo_core_genes[which(Gilliamella_panaroo_core_genes %in% rownames(breadth_out_0.5))]
 colSums(breadth_out_0.5[breadth_core_genes_present, ])
 
-par(mfrow = c(2, 1))
+par(mfrow = c(1, 2))
 plot(colSums(pandora_output[grep("Gilli", rownames(Gilliamella_panaroo_out)), ]),
      colSums(pandora_output[Gilliamella_panaroo_core_genes, ]),
      ylim = c(0, 700),
@@ -295,24 +295,24 @@ par(mfrow = c(1, 1))
 
 ## Snodgrassella
 
-```{r Snodgrassella_core_gene_evaluate, fig.width=4, fig.height=4}
+```{r Snodgrassella_core_gene_evaluate, fig.width=10, fig.height=4}
 Snodgrassella_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Snodgrassella/gene_presence_absence_roary.csv"
 
 Snodgrassella_panaroo_out <- read.table(Snodgrassella_path_to_panaroo,
                                       header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
 rownames(Snodgrassella_panaroo_out) <- paste("Snod", rownames(Snodgrassella_panaroo_out), sep = "_")
 
-Snodgrassella_panaroo_core_genes <- rownames(Snodgrassella_panaroo_out)[which(Snodgrassella_panaroo_out$No..isolates >= 53)]
+Snodgrassella_panaroo_core_genes <- rownames(Snodgrassella_panaroo_out)[which(Snodgrassella_panaroo_out$No..isolates >= 51)]
 prop_core_gene <- colSums(pandora_output[Snodgrassella_panaroo_core_genes, ]) / colSums(pandora_output[grep("Snod", rownames(Snodgrassella_panaroo_out)), ])
 #colSums(pandora_output[grep("Snod", rownames(Snodgrassella_panaroo_out)), ])
 
 breadth_core_genes_present <- Snodgrassella_panaroo_core_genes[which(Snodgrassella_panaroo_core_genes %in% rownames(breadth_out_0.5))]
 #colSums(breadth_out_0.5[breadth_core_genes_present, ])
 
-par(mfrow = c(2, 1))
+par(mfrow = c(1, 2))
 plot(colSums(pandora_output[grep("Snod", rownames(Snodgrassella_panaroo_out)), ]),
      colSums(pandora_output[Snodgrassella_panaroo_core_genes, ]),
-     ylim = c(0, 800),
+     ylim = c(0, 1300),
      xlim = c(0, 4000),
      xlab = "Total Snodgrassella genes",
      ylab = "Total core genes identified",
@@ -322,7 +322,7 @@ abline(a = length(Snodgrassella_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
 
 plot(colSums(breadth_out_0.5[grep("Snod", rownames(breadth_out_0.5)), ]),
      colSums(breadth_out_0.5[breadth_core_genes_present, ]),
-     ylim = c(0, 800),
+     ylim = c(0, 1300),
      xlim = c(0, 4000),
      xlab = "Total Snodgrassella genes",
      ylab = "Total core genes identified",
@@ -340,14 +340,6 @@ It would be interesting if highly discordant present/absent calls were for genes
 ```{r jaccard_func}
 
 jaccard_dist_two_vecs <- function(x, y) {
- 
-  # x <- as.numeric(pandora_output_sorted["Gilli_ppiA", ])
-  # 
-  # y <- as.numeric(breadth_out_0.5_sorted["Gilli_ppiA", ])
-  # 
-  # print(x)
-  # print(y)
-  
   both_called <- length(which(x == 1 & y == 1))
   only_x_called <- length(which(x == 1 & y == 0))
   only_y_called <- length(which(x == 0 & y == 1))
@@ -380,7 +372,8 @@ Gilli_prg_summary <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_p
 rownames(Gilli_prg_summary) <- gsub("\\.fa$", "", rownames(Gilli_prg_summary))
 rownames(Gilli_prg_summary) <- gsub("Gilliamella_", "Gilli_", rownames(Gilli_prg_summary))
 
-Gilli_prg_space_counts <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/ortholog_pandora_prgs/Gilliamella_ortholog_fastas_muscle_aligned/Gilliamella_num_space_per_prg.txt", header = FALSE, sep = " ", row.names = 1)
+Gilli_prg_space_counts <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/ortholog_pandora_prgs/Gilliamella_ortholog_fastas_muscle_aligned/Gilliamella_num_space_per_prg.txt",
+                                     header = FALSE, sep = " ", row.names = 1)
 rownames(Gilli_prg_space_counts) <- gsub("\\.fa.max_nest5.min_match7.prg$", "", rownames(Gilli_prg_space_counts))
 rownames(Gilli_prg_space_counts) <- gsub("Gilliamella_", "Gilli_", rownames(Gilli_prg_space_counts))
 
@@ -431,6 +424,65 @@ plot(Snod_prg_and_jaccard_common$prg_metric, Snod_prg_and_jaccard_common$jaccard
 ```
 
 
+# Concordance correlated with overall sample depth
+
+```{r read_sample_depth}
+fastq_depth <- c()
+
+for (SRR in colnames(pandora_output)) {
+  
+  wc_path <- paste("/data1/gdouglas/projects/honey_bee/filtered_fastqs/Ellegaard.2019.2020_cat_wc_files/", SRR, ".fastq_wc.txt", sep = "")
+  
+  fastq_depth <- c(fastq_depth, read.table(wc_path)$V1)
+  
+}
+
+names(fastq_depth) <- colnames(pandora_output)
+
+```
+
+## Gilliamella
+
+```{r Gilliamella_depth_correlation}
+
+Gilli_sample_jaccard_dist <- c()
+
+for (SRR in colnames(pandora_output)) {
+  Gilli_genes <- grep("Gilli", rownames(pandora_output), value = TRUE)
+  Gilli_genes <- Gilli_genes[which(Gilli_genes %in% rownames(breadth_out_0.5))]
+
+  Gilli_sample_jaccard_dist <- c(Gilli_sample_jaccard_dist, jaccard_dist_two_vecs(x = pandora_output[Gilli_genes, SRR], y = breadth_out_0.5[Gilli_genes, SRR]))
+}
+
+names(Gilli_sample_jaccard_dist) <- colnames(pandora_output)
+
+
+plot(Gilli_sample_jaccard_dist, fastq_depth)
+cor.test(Gilli_sample_jaccard_dist, fastq_depth, method = "spearman")
+```
+
+
+## Snodgrassella
+
+```{r Snodgrassella_depth_correlation}
+
+Snod_sample_jaccard_dist <- c()
+
+for (SRR in colnames(pandora_output)) {
+  Snod_genes <- grep("Snod", rownames(pandora_output), value = TRUE)
+  Snod_genes <- Snod_genes[which(Snod_genes %in% rownames(breadth_out_0.5))]
+
+  Snod_sample_jaccard_dist <- c(Snod_sample_jaccard_dist, jaccard_dist_two_vecs(x = pandora_output[Snod_genes, SRR], y = breadth_out_0.5[Snod_genes, SRR]))
+}
+
+names(Snod_sample_jaccard_dist) <- colnames(pandora_output)
+
+
+plot(Snod_sample_jaccard_dist, fastq_depth)
+cor.test(Snod_sample_jaccard_dist, fastq_depth, method = "spearman")
+```
+
+
 # Correlation in prevalence of each gene
 
 ## Gilliamella
@@ -439,7 +491,6 @@ plot(Snod_prg_and_jaccard_common$prg_metric, Snod_prg_and_jaccard_common$jaccard
 plot(Gilli_prg_and_jaccard_common$pandora_prev, Gilli_prg_and_jaccard_common$breadth_prev)
 cor.test(Gilli_prg_and_jaccard_common$pandora_prev, Gilli_prg_and_jaccard_common$breadth_prev, method = "spearman")
 ```
-
 
 ## Snodgrassella
 

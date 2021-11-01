@@ -24,35 +24,35 @@ library(knitr)
 ```{r read_in_data}
 discover_output <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_cooccur_results_clustered_DBH0.3.rds")
 
-Bifidobacterium_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/panaroo_pangenomes/complete_raw_output/Bifidobacterium/gene_presence_absence_roary.csv.gz"
+Bifidobacterium_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Bifidobacterium/gene_presence_absence_roary.csv"
 
 Bifidobacterium_panaroo_out <- read.table(Bifidobacterium_path_to_panaroo,
                                           header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
 rownames(Bifidobacterium_panaroo_out) <- paste("Bifidobacterium", rownames(Bifidobacterium_panaroo_out), sep = "_")
 
 
-Firm4_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/panaroo_pangenomes/complete_raw_output/Firm4//gene_presence_absence_roary.csv.gz"
+Firm4_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Firm4//gene_presence_absence_roary.csv.gz"
 
 Firm4_panaroo_out <- read.table(Firm4_path_to_panaroo,
                                 header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
 rownames(Firm4_panaroo_out) <- paste("Firm4", rownames(Firm4_panaroo_out), sep = "_")
 
 
-Firm5_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/panaroo_pangenomes/complete_raw_output/Firm5//gene_presence_absence_roary.csv.gz"
+Firm5_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Firm5//gene_presence_absence_roary.csv"
 
 Firm5_panaroo_out <- read.table(Firm5_path_to_panaroo,
                                 header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
 rownames(Firm5_panaroo_out) <- paste("Firm5", rownames(Firm5_panaroo_out), sep = "_")
 
-Gilliamella_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/panaroo_pangenomes/roary_formatted_files/Gilliamella_gene_presence_absence_roary-formatted.csv.gz"
+Gilliamella_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Gilliamella/gene_presence_absence_roary.csv"
 Gilliamella_panaroo_out <- read.table(Gilliamella_path_to_panaroo,
                                       header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
-rownames(Gilliamella_panaroo_out) <- paste("Gilli", rownames(Gilliamella_panaroo_out), sep = "_")
+rownames(Gilliamella_panaroo_out) <- paste("Gilliamella", rownames(Gilliamella_panaroo_out), sep = "_")
 
-Snodgrassella_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/panaroo_pangenomes/roary_formatted_files/Snodgrassella_gene_presence_absence_roary-formatted.csv.gz"
+Snodgrassella_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Snodgrassella/gene_presence_absence_roary.csv"
 Snodgrassella_panaroo_out <- read.table(Snodgrassella_path_to_panaroo,
                                         header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
-rownames(Snodgrassella_panaroo_out) <- paste("Snod", rownames(Snodgrassella_panaroo_out), sep = "_")
+rownames(Snodgrassella_panaroo_out) <- paste("Snodgrassella", rownames(Snodgrassella_panaroo_out), sep = "_")
 
 panaroo_out <- rbind(Bifidobacterium_panaroo_out[, c(1:13)],
                      Firm4_panaroo_out[, c(1:13)],
@@ -63,25 +63,7 @@ num_samples <- 71
 ```
 
 ```{r prep_full_network}
-discover_output_edges <- discover_output[, c("gene1", "gene2")]
-colnames(discover_output_edges) <- c("from", "to")
-
-all_unique_nodes <- c(discover_output_edges$from, discover_output_edges$to) 
-all_unique_nodes <- all_unique_nodes[-which(duplicated(all_unique_nodes))]
-
-nodes_info <- data.frame(id = all_unique_nodes,
-                         annot = panaroo_out[all_unique_nodes, "Annotation"])
-
-nodes_info$genus <- NA
-nodes_info[grep("Bifidobacterium", nodes_info$id), "genus"] <- "Bifidobacterium"
-nodes_info[grep("Firm4", nodes_info$id), "genus"] <- "Firm4"
-nodes_info[grep("Firm5", nodes_info$id), "genus"] <- "Firm5"
-nodes_info[grep("Gilli", nodes_info$id), "genus"] <- "Gilliamella"
-nodes_info[grep("Snod", nodes_info$id), "genus"] <- "Snodgrassella"
-
-net <- graph_from_data_frame(d = discover_output_edges,
-                             vertices = nodes_info,
-                             directed = FALSE)
+net <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_cooccur_results_clustered_DBH0.3_net.rds")
 ```
 
 # Total associations and genes
@@ -92,8 +74,8 @@ total_genes <- total_genes[-which(duplicated(total_genes))]
 ```
 There are `r nrow(discover_output)` associations (at q < 0.3) in total based on `r length(total_genes)` unique genes.
 
-# Centrality metrics {.tabset}
 
+# Centrality metrics {.tabset}
 Only looked at edge degrees and betweenness centrality, because others I looked at were redundant or made no sense for unconnected graphs.
 
 ```{r compute_centrality_metrics}
@@ -101,6 +83,7 @@ net_degree <- degree(net)
 net_betweenness <- betweenness(net)
 
 ```
+
 
 ## Edge degree
 ```{r degree_histogram}
@@ -127,45 +110,13 @@ head(panaroo_out[names(sort(net_betweenness, decreasing = TRUE)), "Annotation"],
 With all associations at discrete BH (DBH) < 0.3.
 
 ```{r save_components}
-net_components <- components(net)
-
-saveRDS(object = net_components,
-        file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_cooccur_results_clustered_DBH0.3_components.rds")
+net_components <- readRDS(file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_cooccur_results_clustered_DBH0.3_components.rds")
 ```
 
 ```{r full_graph}
 net_flattened <- ggnetwork(net)
 
 ggplot(net_flattened, aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_edges() +
-  geom_nodes(aes(color = genus), size = 3) +
-  theme_blank()
-```
-
-# Network graph (for nodes with DBH < 0.05)
-```{r stringent_graph}
-discover_output_edges_0.05 <- discover_output[which(discover_output$q.value < 0.05), c("gene1", "gene2")]
-colnames(discover_output_edges_0.05) <- c("from", "to")
-
-all_unique_nodes_0.05 <- c(discover_output_edges_0.05$from, discover_output_edges_0.05$to) 
-all_unique_nodes_0.05 <- all_unique_nodes_0.05[-which(duplicated(all_unique_nodes_0.05))]
-
-nodes_info_0.05 <- data.frame(id = all_unique_nodes_0.05,
-                             annot = panaroo_out[all_unique_nodes_0.05, "Annotation"])
-
-nodes_info_0.05$genus <- NA
-nodes_info_0.05[grep("Bifidobacterium", nodes_info_0.05$id), "genus"] <- "Bifidobacterium"
-nodes_info_0.05[grep("Firm4", nodes_info_0.05$id), "genus"] <- "Firm4"
-nodes_info_0.05[grep("Firm5", nodes_info_0.05$id), "genus"] <- "Firm5"
-nodes_info_0.05[grep("Gilli", nodes_info_0.05$id), "genus"] <- "Gilliamella"
-nodes_info_0.05[grep("Snod", nodes_info_0.05$id), "genus"] <- "Snodgrassella"
-
-net_0.05 <- graph_from_data_frame(d = discover_output_edges_0.05,
-                                 vertices = nodes_info_0.05,
-                                 directed = FALSE)
-net_flattened_0.05 <- ggnetwork(net_0.05)
-
-ggplot(net_flattened_0.05, aes(x = x, y = y, xend = xend, yend = yend)) +
   geom_edges() +
   geom_nodes(aes(color = genus), size = 3) +
   theme_blank()
@@ -228,7 +179,7 @@ compute_unnorm_expected_prop <- function(tested_genes, phylotype1, phylotype2) {
 crossphylo_summary <- data.frame(matrix(NA, nrow = 10, ncol = 4))
 colnames(crossphylo_summary) <- c("phylo_group", "observed", "unnorm_expected_prop", "unnorm_expected_prop_sig_genes")
 
-phylotypes <- c("Bifidobacterium", "Firm4", "Firm5", "Gilli", "Snod")
+phylotypes <- c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")
 
 row_i <- 1
 

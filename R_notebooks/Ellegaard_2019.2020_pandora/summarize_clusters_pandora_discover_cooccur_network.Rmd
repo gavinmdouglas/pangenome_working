@@ -1,0 +1,626 @@
+---
+title: "Summarize clusters / modules in DISCOVER network"
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+
+```{r setup, include=FALSE}
+library("reshape2")
+library("ggnetwork")
+library("igraph")
+library("stringr")
+library("DT")
+
+source("/home/gdouglas/scripts/pangenome_working/Rscripts/functions.R")
+```
+
+# Read in all data
+
+```{r read_in_data}
+net <- readRDS(file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_cooccur_results_clustered_DBH0.3_net.rds")
+
+net_components <- readRDS(file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_cooccur_results_clustered_DBH0.3_components.rds")
+
+spydrpick_hits <- readRDS(file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/spydrpick_hits.rds")
+
+all_spydrpick_hits <- c(spydrpick_hits$Firm5, spydrpick_hits$Gilliamella, spydrpick_hits$Snodgrassella)
+
+discover_output <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_cooccur_results_clustered_DBH0.3.rds")
+discover_output <- discover_output[, c("gene1", "gene2")]
+discover_output_sort <- t(apply(discover_output, 1, sort))
+rownames(discover_output) <- paste(discover_output_sort[, 1], discover_output_sort[, 2])
+
+tested_genes <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_tested_genes.rds")
+tested_genes <- names(tested_genes)[which(tested_genes)]
+
+module2KO <- read_KO_module_map("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_ko_module_links.tsv.gz",
+                                min_num_funcs = 5)
+
+pathway2KO <- read_KO_pathway_map("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_ko_pathway_links.tsv.gz",
+                                  min_num_funcs = 5)
+
+panaroo2KO <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_ref_only_annot/KO_microbiota_panaroo_orthologs.tsv.gz",
+                               header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
+
+panaroo2CAZy <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_ref_only_annot/CAZy_microbiota_panaroo_orthologs.tsv.gz",
+                         header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
+```
+
+```{r read_description_files}
+KO_descrip <- read.table("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_ko_descrip.tsv.gz",
+                         header = FALSE, sep = "\t", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
+rownames(KO_descrip) <- gsub("^ko:", "", rownames(KO_descrip))
+
+pathway_descrip <- read.table("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_pathway_descrip.tsv.gz",
+                         header = FALSE, sep = "\t", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
+rownames(pathway_descrip) <- gsub("^path:map", "ko", rownames(pathway_descrip))
+
+module_descrip <- read.table("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_module_descrip.tsv.gz",
+                         header = FALSE, sep = "\t", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
+rownames(module_descrip) <- gsub("^md:", "", rownames(module_descrip))
+
+
+CAZy_descrip <- read.table("/data1/gdouglas/db/2021_10_14_CAZy_family_info.txt.gz",
+                           header = TRUE, sep = "\t", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
+```
+
+```{r defined_functions}
+get_edges_between_node_set <- function(nodes, edges) {
+  
+  intersecting_edges <- c()
+  
+  for (node in nodes) {
+    intersecting_edges <- c(intersecting_edges,
+                            rownames(edges)[which(edges[, 1] == node)],
+                            rownames(edges)[which(edges[, 2] == node)])
+  }
+  
+  intersecting_edges_breakdown <- table(intersecting_edges)
+  
+  return(names(intersecting_edges_breakdown)[which(intersecting_edges_breakdown == 2)])
+  
+}
+
+determine_percent_phylotype_linked_edges <- function(edge_set, phylotype_pattern, strain_linked_hits) {
+  # Get number and percent of edges that are known to be strain linked
+  # (for each phylotype with at least one strain-linked genes defined)
+  
+  phylotype_edge_subset <- grep(x = edge_set, pattern = phylotype_pattern, value = TRUE)
+  
+  if (length(phylotype_edge_subset) > 0) {
+    strain_linked_intersects <- length(which(phylotype_edge_subset %in% strain_linked_hits))
+    strain_linked_intersects_percent <- (strain_linked_intersects / length(phylotype_edge_subset)) * 100
+    return(c(strain_linked_intersects, strain_linked_intersects_percent))
+  } else {
+    return(c(NA, NA))
+  }
+}
+```
+
+# Network split up by each independent component.
+
+```{r network_by_cluster}
+net_flattened <- ggnetwork(net)
+net_flattened$membership <- net_components$membership[net_flattened$name]
+
+net_flattened_subsetted <- net_flattened
+cluster2keep <- which(net_components$csize >= 5)
+net_flattened_subsetted <- net_flattened_subsetted[which(net_flattened_subsetted$membership %in% cluster2keep), ] 
+net_flattened_subsetted$membership <- factor(net_flattened_subsetted$membership)
+diverse_col <- c("#b3398f",
+                "#77bb3c",
+                "#9a57ca",
+                "#61c073",
+                "#e26fcf",
+                "#4c8832",
+                "#5e6ccc",
+                "#d79c30",
+                "#5e93cd",
+                "#c6572d",
+                "#4bc2b6",
+                "#d6414c",
+                "#3c8861",
+                "#dd4a84",
+                "#b5b250",
+                "#c590d3",
+                "#707a32",
+                "#94588e",
+                "#936a2e",
+                "#a24656",
+                "#dd9663",
+                "#e38389")
+
+ggplot(net_flattened_subsetted, aes(x = x, y = y, xend = xend, yend = yend)) +
+        geom_edges() +
+        geom_nodes(aes(color = membership), size = 3) +
+        scale_color_manual(values = diverse_col) +
+        theme_blank()
+```
+
+
+# Strain-linkedness of each cluster
+
+```{r strain_linkedness_table}
+patterns_to_search <- list()
+patterns_to_search[["Firm5"]] <- "Firm5.*Firm5"
+patterns_to_search[["Gilliamella"]] <- "Gilliamella.*Gilliamella"
+patterns_to_search[["Snodgrassella"]] <- "Snodgrassella.*Snodgrassella"
+
+strain_link_metrics <- data.frame(matrix(NA, nrow = length(cluster2keep), ncol = 7))
+colnames(strain_link_metrics) <- c("cluster_num", "Firm5_count", "Firm5_percent",
+                                   "Gilliamella_count", "Gilliamella_percent", "Snodgrassella_count", "Snodgrassella_percent")
+
+row_i <- 1
+
+for (cluster_num in cluster2keep) {
+  
+  strain_link_metrics[row_i, "cluster_num"] <- cluster_num
+  
+  cluster_edges <- get_edges_between_node_set(nodes=names(net_components$membership[which(net_components$membership == cluster_num)]),
+                                              edges=discover_output)
+
+  for (phylotype in names(patterns_to_search)) {
+    
+    if (length(grep(patterns_to_search[[phylotype]], cluster_edges)) >= 0) {
+    
+      strain_link_metrics[row_i, grep(phylotype, colnames(strain_link_metrics))] <- determine_percent_phylotype_linked_edges(edge_set=cluster_edges,
+                                                                                                                             phylotype_pattern = patterns_to_search[[phylotype]],
+                                                                                                                             strain_linked_hits=spydrpick_hits[[phylotype]])
+    }  
+    
+  }
+  
+  row_i <- row_i + 1
+  
+}
+
+datatable(strain_link_metrics,
+          rownames = FALSE,
+          class = 'cell-border stripe')
+```
+Gilliamella and Snodgrassella edges are only in cluster 1 (or otherwise there are only 2 matching edges in the cluster), where only a minority of edges correspond to known strain-linked gene associations.
+
+
+# Functional enrichments in cluster 1 {.tabset}
+
+**PTS was the only function at all which was significant. This KEGG pathway was significantly negatively enriched in cluster 1 (0.745 odds ratio).**
+
+```{r cluster1_nodes}
+cluster1_nodes <- names(net_components$membership[which(net_components$membership == 1)])
+
+cluster1_nodes_by_phylotype <- list()
+
+for (phylotype in c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")) {
+  cluster1_nodes_by_phylotype[[phylotype]] <- grep(phylotype, cluster1_nodes, value = TRUE)
+}
+
+background_sets <- list()
+for (phylotype in c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")) {
+  background_sets[[phylotype]] <- grep(phylotype, tested_genes, value = TRUE)
+}
+
+```
+
+## KOs
+
+```{r identify_enriched_KOs_cluster1}
+hist(test_for_enriched_gene_families(gene_set = panaroo2KO[cluster1_nodes, "V2"],
+                                  background_set = panaroo2KO[tested_genes, "V2"],
+                                  min_count_in_background = 3)$fisher_BH)
+```
+
+## KEGG pathways
+
+
+```{r identify_enriched_KEGG_pathways_cluster1}
+
+  gene_set_KOs <- panaroo2KO[cluster1_nodes, "V2"]
+  background_set_KOs <- panaroo2KO[tested_genes, "V2"]
+
+  pathway_set_in <- c()
+  background_set_in <- c()
+  
+  for(pathway in names(pathway2KO)) {
+    pathway_set_in <- c(pathway_set_in, rep(pathway, times = length(which(gene_set_KOs %in% pathway2KO[[pathway]]))))
+    background_set_in <- c(background_set_in, rep(pathway, times = length(which(background_set_KOs %in% pathway2KO[[pathway]]))))
+  }
+
+hist(test_for_enriched_gene_families(gene_set = pathway_set_in,
+                                  background_set = background_set_in,
+                                  min_count_in_background = 3)$fisher_BH)
+```
+
+## KEGG modules
+
+```{r identify_enriched_KEGG_modules_cluster1}
+
+  gene_set_KOs <- panaroo2KO[cluster1_nodes, "V2"]
+  background_set_KOs <- panaroo2KO[tested_genes, "V2"]
+
+  module_set_in <- c()
+  background_set_in <- c()
+  
+  for(module in names(module2KO)) {
+    module_set_in <- c(module_set_in, rep(module, times = length(which(gene_set_KOs %in% module2KO[[module]]))))
+    background_set_in <- c(background_set_in, rep(module, times = length(which(background_set_KOs %in% module2KO[[module]]))))
+  }
+
+hist(test_for_enriched_gene_families(gene_set = module_set_in,
+                                  background_set = background_set_in,
+                                  min_count_in_background = 3)$fisher_BH)
+```
+
+## CAZy gene families
+
+```{r identify_enriched_CAZy_genefamily_cluster1}
+
+hist(test_for_enriched_gene_families(gene_set = panaroo2CAZy[cluster1_nodes, "V2"],
+                                  background_set = panaroo2CAZy[tested_genes, "V2"],
+                                  min_count_in_background = 3)$fisher_BH)
+
+```
+
+## CAZy categories
+
+```{r identify_enriched_CAZy_categories_cluster1}
+
+gene_set_in <- gsub("\\d*", "", panaroo2CAZy[cluster1_nodes, "V2"])
+gene_set_in <- gsub("_", "", gene_set_in)
+
+background_set_in <- gsub("\\d*", "", panaroo2CAZy[tested_genes, "V2"])
+background_set_in <- gsub("_", "", background_set_in)
+
+hist(test_for_enriched_gene_families(gene_set = gene_set_in,
+                                  background_set = background_set_in,
+                                  min_count_in_background = 3)$fisher_BH)
+
+```
+
+
+# Identifying sub-modules of cluster 1
+
+```{r get_sub_modules_fast}
+cluster_fast_greedy_out <- cluster_fast_greedy(graph = net, )
+```
+
+
+```{r plot_sub_module_painted_network}
+net_flattened_subsetted_cluster1 <- net_flattened_subsetted[which(net_flattened_subsetted$membership == "1"), ] 
+
+net_flattened_subsetted_cluster1$submodule <- membership(cluster_fast_greedy_out)[net_flattened_subsetted_cluster1$name]
+
+net_flattened_subsetted_cluster1$submodule_factor <- factor(net_flattened_subsetted_cluster1$submodule)
+
+diverse_col_14 <- c("#b3398f",
+                    "#77bb3c",
+                    "#9a57ca",
+                    "#61c073",
+                    "#e26fcf",
+                    "#4c8832",
+                    "#5e6ccc",
+                    "#d79c30",
+                    "#5e93cd",
+                    "#c6572d",
+                    "#4bc2b6",
+                    "#d6414c",
+                    "#3c8861",
+                    "#dd4a84")
+
+ggplot(net_flattened_subsetted_cluster1, aes(x = x, y = y, xend = xend, yend = yend)) +
+        geom_edges() +
+        geom_nodes(aes(color = submodule_factor), size = 3) +
+        scale_color_manual(values = diverse_col_14) +
+        theme_blank()
+
+separate_submodules <- names(table(net_flattened_subsetted_cluster1$submodule))
+```
+
+
+
+# Strain-linkedness of each sub-module in cluster 1
+
+```{r strain_linkedness_table_submodules}
+
+patterns_to_search <- list()
+patterns_to_search[["Firm5"]] <- "Firm5.*Firm5"
+patterns_to_search[["Gilliamella"]] <- "Gilliamella.*Gilliamella"
+patterns_to_search[["Snodgrassella"]] <- "Snodgrassella.*Snodgrassella"
+
+strain_link_metrics_cluster1 <- data.frame(matrix(NA, nrow = length(cluster2keep), ncol = 7))
+colnames(strain_link_metrics_cluster1) <- c("submodule", "Firm5_count", "Firm5_percent",
+                                   "Gilliamella_count", "Gilliamella_percent", "Snodgrassella_count", "Snodgrassella_percent")
+
+row_i <- 1
+
+for (submodule in separate_submodules) {
+
+  strain_link_metrics_cluster1[row_i, "submodule"] <- submodule
+  
+  cluster_edges <- get_edges_between_node_set(nodes=unique(net_flattened_subsetted_cluster1[which(net_flattened_subsetted_cluster1$submodule == submodule), "name"]),
+                                              edges=discover_output)
+
+  for (phylotype in names(patterns_to_search)) {
+    
+    if (length(grep(patterns_to_search[[phylotype]], cluster_edges)) >= 0) {
+    
+      strain_link_metrics_cluster1[row_i, grep(phylotype, colnames(strain_link_metrics_cluster1))] <- determine_percent_phylotype_linked_edges(edge_set=cluster_edges,
+                                                                                                                             phylotype_pattern = patterns_to_search[[phylotype]],
+                                                                                                                             strain_linked_hits=spydrpick_hits[[phylotype]])
+    }  
+    
+  }
+  
+  row_i <- row_i + 1
+  
+}
+
+datatable(strain_link_metrics_cluster1,
+          rownames = FALSE,
+          class = 'cell-border stripe')
+```
+
+
+
+# Functional enrichments in sub-modules of cluster 1 {.tabset}
+
+## KOs
+
+```{r identify_enriched_KOs_cluster1_submodules}
+fisher_out_df <- data.frame(matrix(NA, nrow = 0, ncol = 6))
+colnames(fisher_out_df) <- c("submodule", "phylotype", "func", "func_descrip", "OR", "BH")
+  
+for (submodule in separate_submodules) {
+  
+  submodule_nodes <- unique(net_flattened_subsetted_cluster1[which(net_flattened_subsetted_cluster1$submodule == submodule), "name"])
+
+  for (phylotype in c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")) {
+    
+    phylotype_submodule_nodes <- grep(phylotype, submodule_nodes, value = TRUE)
+    
+    if (length(phylotype_submodule_nodes) < 5) { next }
+    
+    KO_phylotype_out <- test_for_enriched_gene_families(gene_set = panaroo2KO[phylotype_submodule_nodes, "V2"],
+                                                         background_set = panaroo2KO[background_sets[[phylotype]], "V2"],
+                                                         min_count_in_background = 5)
+  
+    if (length(which(KO_phylotype_out$fisher_BH < 0.3)) > 0) {
+     sig_func <- names(which(KO_phylotype_out$fisher_BH < 0.3))
+     
+     fisher_out_df <- rbind(fisher_out_df,
+                            data.frame(submodule = submodule,
+                                       phylotype = phylotype,
+                                       func = sig_func,
+                                       func_descrip = KO_descrip[sig_func, 1],
+                                       OR = KO_phylotype_out$fisher_or[sig_func],
+                                       BH = KO_phylotype_out$fisher_BH[sig_func]))
+     
+   }
+  
+  }
+  
+}
+
+datatable(fisher_out_df,
+          rownames = FALSE,
+          class = 'cell-border stripe')
+
+```
+
+
+
+## KEGG pathways
+
+```{r identify_enriched_KEGG_pathways_cluster1_submodules}
+
+  fisher_out_df <- data.frame(matrix(NA, nrow = 0, ncol = 6))
+  colnames(fisher_out_df) <- c("submodule", "phylotype", "func", "func_descrip", "OR", "BH")
+    
+  for (submodule in separate_submodules) {
+    
+    submodule_nodes <- unique(net_flattened_subsetted_cluster1[which(net_flattened_subsetted_cluster1$submodule == submodule), "name"])
+    
+    for (phylotype in c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")) {
+      
+      phylotype_submodule_nodes <- grep(phylotype, submodule_nodes, value = TRUE)
+      
+      if (length(phylotype_submodule_nodes) < 5) { next }
+      
+      gene_set_KOs <- panaroo2KO[phylotype_submodule_nodes, "V2"]
+      background_set_KOs <- panaroo2KO[grep(phylotype, rownames(panaroo2KO)), "V2"]
+      
+      pathway_set_in <- c()
+      background_set_in <- c()
+  
+      for(pathway in names(pathway2KO)) {
+        pathway_set_in <- c(pathway_set_in, rep(pathway, times = length(which(gene_set_KOs %in% pathway2KO[[pathway]]))))
+        background_set_in <- c(background_set_in, rep(pathway, times = length(which(background_set_KOs %in% pathway2KO[[pathway]]))))
+      }
+      
+      if (length(pathway_set_in) < 5) { next }
+
+      pathway_phylotype_out <- test_for_enriched_gene_families(gene_set = pathway_set_in,
+                                                           background_set = background_set_in,
+                                                           min_count_in_background = 5)
+    
+      if (length(which(pathway_phylotype_out$fisher_BH < 0.3)) > 0) {
+       sig_func <- names(which(pathway_phylotype_out$fisher_BH < 0.3))
+       
+       fisher_out_df <- rbind(fisher_out_df,
+                              data.frame(submodule = submodule,
+                                         phylotype = phylotype,
+                                         func = sig_func,
+                                         func_descrip = pathway_descrip[sig_func, 1],
+                                         OR = pathway_phylotype_out$fisher_or[sig_func],
+                                         BH = pathway_phylotype_out$fisher_BH[sig_func]))
+       
+     }
+    
+    }
+    
+  }
+  
+  datatable(fisher_out_df,
+            rownames = FALSE,
+            class = 'cell-border stripe')
+```
+
+## KEGG modules
+
+```{r identify_enriched_KEGG_modules_cluster1_submodules}
+
+  fisher_out_df <- data.frame(matrix(NA, nrow = 0, ncol = 6))
+  colnames(fisher_out_df) <- c("submodule", "phylotype", "func", "func_descrip", "OR", "BH")
+    
+  for (submodule in separate_submodules) {
+    
+    submodule_nodes <- unique(net_flattened_subsetted_cluster1[which(net_flattened_subsetted_cluster1$submodule == submodule), "name"])
+    
+    for (phylotype in c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")) {
+      
+      phylotype_submodule_nodes <- grep(phylotype, submodule_nodes, value = TRUE)
+      
+      if (length(phylotype_submodule_nodes) < 5) { next }
+      
+      gene_set_KOs <- panaroo2KO[phylotype_submodule_nodes, "V2"]
+      background_set_KOs <- panaroo2KO[grep(phylotype, rownames(panaroo2KO)), "V2"]
+      
+      module_set_in <- c()
+      background_set_in <- c()
+  
+      for(module in names(module2KO)) {
+        module_set_in <- c(module_set_in, rep(module, times = length(which(gene_set_KOs %in% module2KO[[module]]))))
+        background_set_in <- c(background_set_in, rep(module, times = length(which(background_set_KOs %in% module2KO[[module]]))))
+      }
+      
+      if (length(module_set_in) < 5) { next }
+
+      module_phylotype_out <- test_for_enriched_gene_families(gene_set = module_set_in,
+                                                           background_set = background_set_in,
+                                                           min_count_in_background = 5)
+    
+      if (length(which(module_phylotype_out$fisher_BH < 0.3)) > 0) {
+       sig_func <- names(which(module_phylotype_out$fisher_BH < 0.3))
+       
+       fisher_out_df <- rbind(fisher_out_df,
+                              data.frame(submodule = submodule,
+                                         phylotype = phylotype,
+                                         func = sig_func,
+                                         func_descrip = module_descrip[sig_func, 1],
+                                         OR = module_phylotype_out$fisher_or[sig_func],
+                                         BH = module_phylotype_out$fisher_BH[sig_func]))
+       
+     }
+    
+    }
+    
+  }
+  
+  datatable(fisher_out_df,
+            rownames = FALSE,
+            class = 'cell-border stripe')
+```
+
+## CAZy gene families
+
+```{r identify_enriched_CAZy_genefamily_cluster1_submodules}
+fisher_out_df <- data.frame(matrix(NA, nrow = 0, ncol = 6))
+colnames(fisher_out_df) <- c("submodule", "phylotype", "func", "func_descrip", "OR", "BH")
+  
+for (submodule in separate_submodules) {
+  
+  submodule_nodes <- unique(net_flattened_subsetted_cluster1[which(net_flattened_subsetted_cluster1$submodule == submodule), "name"])
+
+  for (phylotype in c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")) {
+    
+    phylotype_submodule_nodes <- grep(phylotype, submodule_nodes, value = TRUE)
+    
+    if (length(which(! is.na(panaroo2CAZy[phylotype_submodule_nodes, "V2"]))) < 5) { next }
+    
+    CAZy_phylotype_out <- test_for_enriched_gene_families(gene_set = panaroo2CAZy[phylotype_submodule_nodes, "V2"],
+                                                         background_set = panaroo2CAZy[background_sets[[phylotype]], "V2"],
+                                                         min_count_in_background = 5)
+  
+    if (("fisher_BH" %in% names(CAZy_phylotype_out)) && (length(which(CAZy_phylotype_out$fisher_BH < 0.3)) > 0)) {
+     sig_func <- names(which(CAZy_phylotype_out$fisher_BH < 0.3))
+     
+     fisher_out_df <- rbind(fisher_out_df,
+                            data.frame(submodule = submodule,
+                                       phylotype = phylotype,
+                                       func = sig_func,
+                                       func_descrip = CAZy_descrip[sig_func, 1],
+                                       OR = CAZy_phylotype_out$fisher_or[sig_func],
+                                       BH = CAZy_phylotype_out$fisher_BH[sig_func]))
+     
+   }
+  }
+}
+
+datatable(fisher_out_df,
+          rownames = FALSE,
+          class = 'cell-border stripe')
+```
+
+## CAZy categories
+
+```{r identify_enriched_CAZy_categories_cluster1_submodules}
+fisher_out_df <- data.frame(matrix(NA, nrow = 0, ncol = 6))
+colnames(fisher_out_df) <- c("submodule", "phylotype", "func", "func_descrip", "OR", "BH")
+  
+for (submodule in separate_submodules) {
+  
+  submodule_nodes <- unique(net_flattened_subsetted_cluster1[which(net_flattened_subsetted_cluster1$submodule == submodule), "name"])
+
+  for (phylotype in c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella")) {
+    
+    phylotype_submodule_nodes <- grep(phylotype, submodule_nodes, value = TRUE)
+    
+    if (length(which(! is.na(panaroo2CAZy[phylotype_submodule_nodes, "V2"]))) < 5) { next }
+    
+    gene_set_in <- gsub("\\d*", "", panaroo2CAZy[phylotype_submodule_nodes, "V2"])
+    gene_set_in <- gsub("_", "", gene_set_in)
+    
+    background_set_in <- gsub("\\d*", "", panaroo2CAZy[background_sets[[phylotype]], "V2"])
+    background_set_in <- gsub("_", "", background_set_in)
+        
+    CAZy_phylotype_out <- test_for_enriched_gene_families(gene_set = gene_set_in,
+                                                         background_set = background_set_in,
+                                                         min_count_in_background = 5)
+  
+    if (("fisher_BH" %in% names(CAZy_phylotype_out)) && (length(which(CAZy_phylotype_out$fisher_BH < 0.3)) > 0)) {
+     sig_func <- names(which(CAZy_phylotype_out$fisher_BH < 0.3))
+     
+     fisher_out_df <- rbind(fisher_out_df,
+                            data.frame(submodule = submodule,
+                                       phylotype = phylotype,
+                                       func = sig_func,
+                                       func_descrip = CAZy_descrip[sig_func, 1],
+                                       OR = CAZy_phylotype_out$fisher_or[sig_func],
+                                       BH = CAZy_phylotype_out$fisher_BH[sig_func]))
+     
+   }
+  }
+}
+
+datatable(fisher_out_df,
+          rownames = FALSE,
+          class = 'cell-border stripe')
+```
+
+
+
+# Session info {.tabset}
+
+## Hide
+
+## Show
+
+```{r session_info}
+sessionInfo()
+```

@@ -1,0 +1,459 @@
+---
+title: "Compare pandora and custom coverage breadth approaches for calling genes as present/absent (including the breadth approach based on comp. mapping against pandora-identified ref. genes)"
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(reshape2)
+library(kableExtra)
+library(knitr)
+
+distinct_21_colours <- c("#5b531d",
+                          "#874bd2",
+                          "#8aad00",
+                          "#b03bc1",
+                          "#ef8e00",
+                          "#9387ff",
+                          "#837200",
+                          "#b7008b",
+                          "#01d1bd",
+                          "#ff3a88",
+                          "#92d5a3",
+                          "#a5102d",
+                          "#016cba",
+                          "#ff5b4b",
+                          "#5e4298",
+                          "#cbca7d",
+                          "#8c2d6e",
+                          "#c9a275",
+                          "#fea9ff",
+                          "#89374a",
+                          "#ff8d8a")
+```
+
+# Compare inferred presence / absence profiles
+
+Major caveat is that the exact gene ids differ based on the orig approach (as panaroo was rerun since running this method).
+
+```{r read_in}
+pandora_output <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_multisample.matrix",
+                             header = TRUE, sep = "\t", row.names = 1)
+rownames(pandora_output) <- gsub("\\.fa$", "", rownames(pandora_output))
+
+breadth_out_orig <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/old/second_pass_panaroo_breadth_coverage/Gilliamella_and_Snodgrassella_present.rds")
+
+# Need to fix gene names.
+rownames(breadth_out_orig) <- gsub("Gilli_", "Gilliamella_", rownames(breadth_out_orig))
+rownames(breadth_out_orig) <- gsub("Snod_", "Snodgrassella_", rownames(breadth_out_orig))
+
+breadth_out_orig_0.5 <- breadth_out_orig
+
+breadth_out_orig_0.5[breadth_out_orig_0.5 < 0.5] <- 0
+breadth_out_orig_0.5[breadth_out_orig_0.5 >= 0.5] <- 1
+breadth_out_orig_0.5 <- breadth_out_orig_0.5[-which(rowSums(breadth_out_orig_0.5) == 0), ]
+
+
+breadth_out_rerun <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/map_against_pandora_ref/clean_tables/Ellegaard.2019.2020_pandora_panaroo_coverage_breadth.rds")
+
+breadth_out_rerun_0.5 <- breadth_out_rerun
+
+breadth_out_rerun_0.5[breadth_out_rerun_0.5 < 0.5] <- 0
+breadth_out_rerun_0.5[breadth_out_rerun_0.5 >= 0.5] <- 1
+breadth_out_rerun_0.5 <- breadth_out_rerun_0.5[-which(rowSums(breadth_out_rerun_0.5) == 0), ]
+```
+
+
+## Compare observed and expected intersect of positive calls {.tabset}
+
+### Orig breadth vs pandora (based on overlapping non-group gene names)
+
+```{r orig_obs_vs_pandora_obs_positives, fig.width=8, fig.height=8}
+
+orig_vs_pandora_intersecting_nongroup <- rownames(pandora_output)[which(rownames(pandora_output) %in% rownames(breadth_out_orig_0.5))]
+orig_vs_pandora_intersecting_nongroup <- orig_vs_pandora_intersecting_nongroup[-grep("group", orig_vs_pandora_intersecting_nongroup)]
+
+obs_intersect <- c()
+exp_intersect <- c()
+
+for (SRR in colnames(pandora_output)) {
+  pandora_present_calls <- which(pandora_output[orig_vs_pandora_intersecting_nongroup, SRR] == 1)
+  breadth_orig_present_calls <- which(breadth_out_orig_0.5[orig_vs_pandora_intersecting_nongroup, SRR] == 1)
+  obs_intersect <- c(obs_intersect, length(which(pandora_present_calls %in% breadth_orig_present_calls)))
+  exp_intersect <- c(exp_intersect, length(pandora_present_calls) * (length(breadth_orig_present_calls) / length(orig_vs_pandora_intersecting_nongroup)))
+
+  
+}
+
+plot(obs_intersect, exp_intersect, main = "Orig breadth vs pandora", xlab = "Observed intersecting positive calls", ylab = "Expected intersecting positive calls at random")
+abline(b = 1, a = 0, lty = 2, lwd = 2)
+```
+
+### Orig breadth vs rerun breadth (based on overlapping non-group gene names)
+
+```{r orig_obs_vs_rerun_obs_positives, fig.width=8, fig.height=8}
+
+orig_vs_rerun_intersecting_nongroup <- rownames(breadth_out_rerun_0.5)[which(rownames(breadth_out_rerun_0.5) %in% rownames(breadth_out_orig_0.5))]
+orig_vs_rerun_intersecting_nongroup <- orig_vs_rerun_intersecting_nongroup[-grep("group", orig_vs_rerun_intersecting_nongroup)]
+
+obs_intersect <- c()
+exp_intersect <- c()
+
+for (SRR in colnames(breadth_out_rerun_0.5)) {
+  rerun_present_calls <- which(breadth_out_rerun_0.5[orig_vs_rerun_intersecting_nongroup, SRR] == 1)
+  breadth_orig_present_calls <- which(breadth_out_orig_0.5[orig_vs_rerun_intersecting_nongroup, SRR] == 1)
+  obs_intersect <- c(obs_intersect, length(which(rerun_present_calls %in% breadth_orig_present_calls)))
+  exp_intersect <- c(exp_intersect, length(rerun_present_calls) * (length(breadth_orig_present_calls) / length(orig_vs_rerun_intersecting_nongroup)))
+
+  
+}
+
+plot(obs_intersect, exp_intersect, main = "Orig breadth vs rerun", xlab = "Observed intersecting positive calls", ylab = "Expected intersecting positive calls at random")
+abline(b = 1, a = 0, lty = 2, lwd = 2)
+```
+
+
+### Rerun breadth vs pandora
+
+```{r rerun_obs_vs_pandora_obs_positives, fig.width=8, fig.height=8}
+
+rerun_vs_pandora_intersecting <- rownames(pandora_output)[which(rownames(pandora_output) %in% rownames(breadth_out_rerun_0.5))]
+
+obs_intersect <- c()
+exp_intersect <- c()
+
+for (SRR in colnames(pandora_output)) {
+  pandora_present_calls <- which(pandora_output[rerun_vs_pandora_intersecting, SRR] == 1)
+  breadth_rerun_present_calls <- which(breadth_out_rerun_0.5[rerun_vs_pandora_intersecting, SRR] == 1)
+  obs_intersect <- c(obs_intersect, length(which(pandora_present_calls %in% breadth_rerun_present_calls)))
+  exp_intersect <- c(exp_intersect, length(pandora_present_calls) * (length(breadth_rerun_present_calls) / length(rerun_vs_pandora_intersecting)))
+
+  
+}
+
+plot(obs_intersect, exp_intersect, main = "rerun breadth vs pandora", xlab = "Observed intersecting positive calls", ylab = "Expected intersecting positive calls at random")
+abline(b = 1, a = 0, lty = 2, lwd = 2)
+```
+
+
+## Compare total numbers of positive calls per sample {.tabset}
+
+### Orig breadth vs pandora (based on overlapping non-group gene names)
+
+```{r orig_obs_vs_pandora_obs_total_positives, fig.width=8, fig.height=8}
+
+plot(colSums(breadth_out_orig_0.5[orig_vs_pandora_intersecting_nongroup,
+                                   colnames(pandora_output)]),
+     colSums(pandora_output[orig_vs_pandora_intersecting_nongroup, ]),
+     main = "orig breadth vs rerun breadth", xlab = "Breadth out orig", ylab = "Pandora out")
+```
+
+### Orig breadth vs rerun breadth (based on overlapping non-group gene names)
+
+```{r orig_obs_vs_rerun_obs_total_positives, fig.width=8, fig.height=8}
+
+plot(colSums(breadth_out_orig_0.5[orig_vs_rerun_intersecting_nongroup,
+                                   colnames(breadth_out_rerun_0.5)]),
+     colSums(breadth_out_rerun_0.5[orig_vs_rerun_intersecting_nongroup, ]),
+     main = "orig breadth vs rerun breadth", xlab = "Breadth out orig", ylab = "Breadth out rerun")
+```
+
+### Rerun breadth vs pandora
+
+```{r rerun_obs_vs_pandora_obs_total_positives, fig.width=8, fig.height=8}
+
+plot(colSums(breadth_out_rerun_0.5[rerun_vs_pandora_intersecting,
+                                   colnames(pandora_output)]),
+     colSums(pandora_output[rerun_vs_pandora_intersecting, ]),
+     main = "rerun breadth vs pandora", xlab = "Breadth out rerun", ylab = "Pandora")
+```
+
+## For a few samples, compare depth and coverage of genes that intersect vs those that do not {.tabset}
+
+For **re-run** breadth approach vs pandora
+
+```{r load_mean_depth}
+mean_depth <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/map_against_pandora_ref/clean_tables/Ellegaard.2019.2020_pandora_panaroo_mean_depth.rds")
+```
+
+### SRR7287243
+
+```{r one_sample_depth_compare_SRR7287243, fig.width = 10, fig.height = 6}
+
+SRR <- "SRR7287243"
+
+pandora_pos_genes <- rerun_vs_pandora_intersecting[which(pandora_output[rerun_vs_pandora_intersecting, SRR] == 1)]
+breadth0.5_pos_genes <- rerun_vs_pandora_intersecting[which(breadth_out_rerun_0.5[rerun_vs_pandora_intersecting, SRR] == 1)]
+
+pandora_only_genes <- pandora_pos_genes[which(! pandora_pos_genes %in% breadth0.5_pos_genes)]
+breadth0.5_only_genes <- breadth0.5_pos_genes[which(! breadth0.5_pos_genes %in% pandora_pos_genes)]
+both_genes <- pandora_pos_genes[which(pandora_pos_genes %in% breadth0.5_pos_genes)]
+
+boxplot(mean_depth[pandora_only_genes, SRR], mean_depth[breadth0.5_only_genes, SRR], mean_depth[both_genes, SRR],
+        main = SRR, names = c("pandora only", "breadth0.5 only", "both"), ylab = "Mean depth per site")
+
+boxplot(breadth_out_rerun[pandora_only_genes, SRR], breadth_out_rerun[breadth0.5_only_genes, SRR], breadth_out_rerun[both_genes, SRR],
+        main = SRR, names = c("pandora only", "breadth0.5 only", "both"), ylab = "Breadth of coverage")
+```
+
+
+### SRR10810005
+
+```{r one_sample_depth_compare_SRR10810005, fig.width = 10, fig.height = 6}
+
+SRR <- "SRR10810005"
+
+pandora_pos_genes <- rerun_vs_pandora_intersecting[which(pandora_output[rerun_vs_pandora_intersecting, SRR] == 1)]
+breadth0.5_pos_genes <- rerun_vs_pandora_intersecting[which(breadth_out_rerun_0.5[rerun_vs_pandora_intersecting, SRR] == 1)]
+
+pandora_only_genes <- pandora_pos_genes[which(! pandora_pos_genes %in% breadth0.5_pos_genes)]
+breadth0.5_only_genes <- breadth0.5_pos_genes[which(! breadth0.5_pos_genes %in% pandora_pos_genes)]
+both_genes <- pandora_pos_genes[which(pandora_pos_genes %in% breadth0.5_pos_genes)]
+
+boxplot(mean_depth[pandora_only_genes, SRR], mean_depth[breadth0.5_only_genes, SRR], mean_depth[both_genes, SRR],
+        main = SRR, names = c("pandora only", "breadth0.5 only", "both"), ylab = "Mean depth per site")
+
+boxplot(breadth_out_rerun[pandora_only_genes, SRR], breadth_out_rerun[breadth0.5_only_genes, SRR], breadth_out_rerun[both_genes, SRR],
+        main = SRR, names = c("pandora only", "breadth0.5 only", "both"), ylab = "Breadth of coverage")
+```
+
+
+### SRR7287216
+
+```{r one_sample_depth_compare_SRR7287216, fig.width = 10, fig.height = 6}
+
+SRR <- "SRR7287216"
+
+pandora_pos_genes <- rerun_vs_pandora_intersecting[which(pandora_output[rerun_vs_pandora_intersecting, SRR] == 1)]
+breadth0.5_pos_genes <- rerun_vs_pandora_intersecting[which(breadth_out_rerun_0.5[rerun_vs_pandora_intersecting, SRR] == 1)]
+
+pandora_only_genes <- pandora_pos_genes[which(! pandora_pos_genes %in% breadth0.5_pos_genes)]
+breadth0.5_only_genes <- breadth0.5_pos_genes[which(! breadth0.5_pos_genes %in% pandora_pos_genes)]
+both_genes <- pandora_pos_genes[which(pandora_pos_genes %in% breadth0.5_pos_genes)]
+
+boxplot(mean_depth[pandora_only_genes, SRR], mean_depth[breadth0.5_only_genes, SRR], mean_depth[both_genes, SRR],
+        main = SRR, names = c("pandora only", "breadth0.5 only", "both"), ylab = "Mean depth per site")
+
+boxplot(breadth_out_rerun[pandora_only_genes, SRR], breadth_out_rerun[breadth0.5_only_genes, SRR], breadth_out_rerun[both_genes, SRR],
+        main = SRR, names = c("pandora only", "breadth0.5 only", "both"), ylab = "Breadth of coverage")
+```
+
+
+
+# Check which method better identifies core genes as present {.tabset}
+
+```{r read_core_genes}
+combined_panaroo_and_core_genes <- readRDS("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/combined_panaroo_and_core_genes.rds")
+```
+
+## Bifidobacterium {.tabset}
+
+### Pandora
+
+```{r Bifidobacterium_core_gene_evaluate_pandora, fig.width=6, fig.height=6}
+
+Bifidobacterium_panaroo_core_genes <- grep("Bifidobacterium", combined_panaroo_and_core_genes$core_genes, value = TRUE)
+
+Bifidobacterium_panaroo_core_genes_filt <- Bifidobacterium_panaroo_core_genes[which(Bifidobacterium_panaroo_core_genes %in% rownames(pandora_output))]
+
+plot(colSums(pandora_output[grep("Bifidobacterium", rownames(pandora_output)), ]),
+     colSums(pandora_output[Bifidobacterium_panaroo_core_genes_filt, ]),
+     ylim = c(0, 1200),
+     xlim = c(0, 2000),
+     xlab = "Total Bifidobacterium genes",
+     ylab = "Total core genes identified",
+     main = "pandora - Bifidobacterium")
+abline(a = length(Bifidobacterium_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
+```
+
+### Re-run breadth
+
+```{r Bifidobacterium_core_gene_evaluate_breadth, fig.width=6, fig.height=6}
+
+Bifidobacterium_panaroo_core_genes <- grep("Bifidobacterium", combined_panaroo_and_core_genes$core_genes, value = TRUE)
+
+Bifidobacterium_panaroo_core_genes_filt <- Bifidobacterium_panaroo_core_genes[which(Bifidobacterium_panaroo_core_genes %in% rownames(breadth_out_rerun_0.5))]
+
+plot(colSums(breadth_out_rerun_0.5[grep("Bifidobacterium", rownames(breadth_out_rerun_0.5)), ]),
+     colSums(breadth_out_rerun_0.5[Bifidobacterium_panaroo_core_genes_filt, ]),
+     ylim = c(0, 1200),
+     xlim = c(0, 2500),
+     xlab = "Total Bifidobacterium genes",
+     ylab = "Total core genes identified",
+     main = "breadth - Bifidobacterium")
+abline(a = length(Bifidobacterium_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
+```
+
+
+
+## Firm4 {.tabset}
+
+### Pandora
+
+```{r Firm4_core_gene_evaluate_pandora, fig.width=6, fig.height=6}
+
+Firm4_panaroo_core_genes <- grep("Firm4", combined_panaroo_and_core_genes$core_genes, value = TRUE)
+
+Firm4_panaroo_core_genes_filt <- Firm4_panaroo_core_genes[which(Firm4_panaroo_core_genes %in% rownames(pandora_output))]
+
+plot(colSums(pandora_output[grep("Firm4", rownames(pandora_output)), ]),
+     colSums(pandora_output[Firm4_panaroo_core_genes_filt, ]),
+     ylim = c(0, 75),
+     xlim = c(0, 1000),
+     xlab = "Total Firm4 genes",
+     ylab = "Total core genes identified",
+     main = "pandora - Firm4")
+abline(a = length(Firm4_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
+```
+
+### Re-run breadth
+
+```{r Firm4_core_gene_evaluate_breadth, fig.width=6, fig.height=6}
+
+Firm4_panaroo_core_genes <- grep("Firm4", combined_panaroo_and_core_genes$core_genes, value = TRUE)
+
+Firm4_panaroo_core_genes_filt <- Firm4_panaroo_core_genes[which(Firm4_panaroo_core_genes %in% rownames(breadth_out_rerun_0.5))]
+
+plot(colSums(breadth_out_rerun_0.5[grep("Firm4", rownames(breadth_out_rerun_0.5)), ]),
+     colSums(breadth_out_rerun_0.5[Firm4_panaroo_core_genes_filt, ]),
+     ylim = c(0, 75),
+     xlim = c(0, 1500),
+     xlab = "Total Firm4 genes",
+     ylab = "Total core genes identified",
+     main = "breadth - Firm4")
+abline(a = length(Firm4_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
+```
+
+
+## Firm5 {.tabset}
+
+### Pandora
+
+```{r Firm5_core_gene_evaluate_pandora, fig.width=6, fig.height=6}
+
+Firm5_panaroo_core_genes <- grep("Firm5", combined_panaroo_and_core_genes$core_genes, value = TRUE)
+
+Firm5_panaroo_core_genes_filt <- Firm5_panaroo_core_genes[which(Firm5_panaroo_core_genes %in% rownames(pandora_output))]
+
+plot(colSums(pandora_output[grep("Firm5", rownames(pandora_output)), ]),
+     colSums(pandora_output[Firm5_panaroo_core_genes_filt, ]),
+     ylim = c(0, 300),
+     xlim = c(0, 3000),
+     xlab = "Total Firm5 genes",
+     ylab = "Total core genes identified",
+     main = "pandora - Firm5")
+abline(a = length(Firm5_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
+```
+
+### Re-run breadth
+
+```{r Firm5_core_gene_evaluate_breadth, fig.width=6, fig.height=6}
+
+Firm5_panaroo_core_genes <- grep("Firm5", combined_panaroo_and_core_genes$core_genes, value = TRUE)
+
+Firm5_panaroo_core_genes_filt <- Firm5_panaroo_core_genes[which(Firm5_panaroo_core_genes %in% rownames(breadth_out_rerun_0.5))]
+
+plot(colSums(breadth_out_rerun_0.5[grep("Firm5", rownames(breadth_out_rerun_0.5)), ]),
+     colSums(breadth_out_rerun_0.5[Firm5_panaroo_core_genes_filt, ]),
+     ylim = c(0, 300),
+     xlim = c(0, 5000),
+     xlab = "Total Firm5 genes",
+     ylab = "Total core genes identified",
+     main = "breadth - Firm5")
+abline(a = length(Firm5_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
+```
+
+
+
+
+
+## Gilliamella {.tabset}
+
+### Pandora
+
+```{r Gilliamella_core_gene_evaluate_pandora, fig.width=6, fig.height=6}
+
+Gilliamella_panaroo_core_genes <- grep("Gilliamella", combined_panaroo_and_core_genes$core_genes, value = TRUE)
+
+Gilliamella_panaroo_core_genes_filt <- Gilliamella_panaroo_core_genes[which(Gilliamella_panaroo_core_genes %in% rownames(pandora_output))]
+
+plot(colSums(pandora_output[grep("Gilliamella", rownames(pandora_output)), ]),
+     colSums(pandora_output[Gilliamella_panaroo_core_genes_filt, ]),
+     ylim = c(0, 1000),
+     xlim = c(0, 3000),
+     xlab = "Total Gilliamella genes",
+     ylab = "Total core genes identified",
+     main = "pandora - Gilliamella")
+abline(a = length(Gilliamella_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
+```
+
+### Re-run breadth
+
+```{r Gilliamella_core_gene_evaluate_breadth, fig.width=6, fig.height=6}
+
+Gilliamella_panaroo_core_genes <- grep("Gilliamella", combined_panaroo_and_core_genes$core_genes, value = TRUE)
+
+Gilliamella_panaroo_core_genes_filt <- Gilliamella_panaroo_core_genes[which(Gilliamella_panaroo_core_genes %in% rownames(breadth_out_rerun_0.5))]
+
+plot(colSums(breadth_out_rerun_0.5[grep("Gilliamella", rownames(breadth_out_rerun_0.5)), ]),
+     colSums(breadth_out_rerun_0.5[Gilliamella_panaroo_core_genes_filt, ]),
+     ylim = c(0, 1000),
+     xlim = c(0, 3000),
+     xlab = "Total Gilliamella genes",
+     ylab = "Total core genes identified",
+     main = "breadth - Gilliamella")
+abline(a = length(Gilliamella_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
+```
+
+
+
+## Snodgrassella {.tabset}
+
+### Pandora
+
+```{r Snodgrassella_core_gene_evaluate_pandora, fig.width=6, fig.height=6}
+
+Snodgrassella_panaroo_core_genes <- grep("Snodgrassella", combined_panaroo_and_core_genes$core_genes, value = TRUE)
+
+Snodgrassella_panaroo_core_genes_filt <- Snodgrassella_panaroo_core_genes[which(Snodgrassella_panaroo_core_genes %in% rownames(pandora_output))]
+
+plot(colSums(pandora_output[grep("Snodgrassella", rownames(pandora_output)), ]),
+     colSums(pandora_output[Snodgrassella_panaroo_core_genes_filt, ]),
+     ylim = c(0, 1500),
+     xlim = c(0, 3000),
+     xlab = "Total Snodgrassella genes",
+     ylab = "Total core genes identified",
+     main = "pandora - Snodgrassella")
+abline(a = length(Snodgrassella_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
+```
+
+### Re-run breadth
+
+```{r Snodgrassella_core_gene_evaluate_breadth, fig.width=6, fig.height=6}
+
+Snodgrassella_panaroo_core_genes <- grep("Snodgrassella", combined_panaroo_and_core_genes$core_genes, value = TRUE)
+
+Snodgrassella_panaroo_core_genes_filt <- Snodgrassella_panaroo_core_genes[which(Snodgrassella_panaroo_core_genes %in% rownames(breadth_out_rerun_0.5))]
+
+plot(colSums(breadth_out_rerun_0.5[grep("Snodgrassella", rownames(breadth_out_rerun_0.5)), ]),
+     colSums(breadth_out_rerun_0.5[Snodgrassella_panaroo_core_genes_filt, ]),
+     ylim = c(0, 1500),
+     xlim = c(0, 3000),
+     xlab = "Total Snodgrassella genes",
+     ylab = "Total core genes identified",
+     main = "breadth - Snodgrassella")
+abline(a = length(Snodgrassella_panaroo_core_genes), b = 0, lwd = 1, lty = 2)
+```
+
+
+
