@@ -8,6 +8,8 @@ mkdir -p $PARENT_WORKING_DIR/$WORKING_DIR_NAME
 
 cd $PARENT_WORKING_DIR/$WORKING_DIR_NAME
 
+module load python/3
+
 # Get FASTA of genes of interest
 python $PATH_TO_SCRIPTS/gene_fasta_to_gene_format_for_kpileup.py \
        -f $MASTER_FASTA \
@@ -26,10 +28,13 @@ done
 
 cat kpileup_cmds.sh | parallel -j $NUM_CORE '{}'
 
-source /home/gdouglas/local/miniconda3/etc/profile.d/conda.sh
-conda activate strainfinder
+### source /home/gdouglas/local/miniconda3/etc/profile.d/conda.sh
+### conda activate strainfinder
 
-python $STRAINFINDER_FOLDER/preprocess/4.kp2np.py \
+module load python/2
+source $HOME/.strainfinder-virtualenv/bin/activate
+
+python $STRAINFINDER_FOLDER/preprocess/4.kp2np_edit.py \
        --samples $ALL_SAMPLES \
        --gene_file input.gene \
        --out alignments.cPickle
@@ -47,22 +52,27 @@ cd strain_fitting
 
 FILTERED_ALIGN="$WORKING_DIR_NAME.np.cPickle"
 
-seq 2 $MAX_NUM_STRAINS_TO_TEST | parallel -j $NUM_CORE 'python $STRAINFINDER_FOLDER/StrainFinder.py \
+for i in $( seq 2 $MAX_NUM_STRAINS_TO_TEST); do
+	echo "python $STRAINFINDER_FOLDER/StrainFinder_edit.py \
                                                                  --aln ../$FILTERED_ALIGN \
-                                                                 -N {} \
+                                                                 -N $i \
                                                                  --max_reps $MAX_REPS \
                                                                  --dtol $DTOL \
                                                                  --ntol $NTOL \
                                                                  --max_time $MAX_TIME \
                                                                  --converge \
-                                                                 --em em.{}.cpickle \
-                                                                 --em_out em.{}.cpickle \
-                                                                 --otu_out otu_table.{}.txt \
+                                                                 --em em.$i.cpickle \
+                                                                 --em_out em.$i.cpickle \
+                                                                 --otu_out otu_table.$i.txt \
                                                                  --log log.txt \
                                                                  --n_keep $N_KEEP \
                                                                  --force_update \
                                                                  --merge_out \
-                                                                 --msg'
+                                                                 --msg" >> ../StrainFinder_cmds.sh
+done
+
+
+cat ../StrainFinder_cmds.sh | parallel -j $NUM_CORE '{}'
 
 python $PATH_TO_SCRIPTS/summarize_strainfinder_AICs.py \
              -i strain_fitting \
