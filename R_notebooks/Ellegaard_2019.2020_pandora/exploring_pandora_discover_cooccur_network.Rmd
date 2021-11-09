@@ -24,41 +24,10 @@ library(knitr)
 ```{r read_in_data}
 discover_output <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_cooccur_results_clustered_DBH0.3.rds")
 
-Bifidobacterium_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Bifidobacterium/gene_presence_absence_roary.csv"
+panaroo_out_and_core_genes <- readRDS("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/combined_panaroo_and_core_genes.rds")
 
-Bifidobacterium_panaroo_out <- read.table(Bifidobacterium_path_to_panaroo,
-                                          header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
-rownames(Bifidobacterium_panaroo_out) <- paste("Bifidobacterium", rownames(Bifidobacterium_panaroo_out), sep = "_")
+panaroo_out <- panaroo_out_and_core_genes$panaroo_all_phylotypes
 
-
-Firm4_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Firm4//gene_presence_absence_roary.csv.gz"
-
-Firm4_panaroo_out <- read.table(Firm4_path_to_panaroo,
-                                header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
-rownames(Firm4_panaroo_out) <- paste("Firm4", rownames(Firm4_panaroo_out), sep = "_")
-
-
-Firm5_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Firm5//gene_presence_absence_roary.csv"
-
-Firm5_panaroo_out <- read.table(Firm5_path_to_panaroo,
-                                header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
-rownames(Firm5_panaroo_out) <- paste("Firm5", rownames(Firm5_panaroo_out), sep = "_")
-
-Gilliamella_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Gilliamella/gene_presence_absence_roary.csv"
-Gilliamella_panaroo_out <- read.table(Gilliamella_path_to_panaroo,
-                                      header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
-rownames(Gilliamella_panaroo_out) <- paste("Gilliamella", rownames(Gilliamella_panaroo_out), sep = "_")
-
-Snodgrassella_path_to_panaroo <- "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Snodgrassella/gene_presence_absence_roary.csv"
-Snodgrassella_panaroo_out <- read.table(Snodgrassella_path_to_panaroo,
-                                        header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
-rownames(Snodgrassella_panaroo_out) <- paste("Snodgrassella", rownames(Snodgrassella_panaroo_out), sep = "_")
-
-panaroo_out <- rbind(Bifidobacterium_panaroo_out[, c(1:13)],
-                     Firm4_panaroo_out[, c(1:13)],
-                     Firm5_panaroo_out[, c(1:13)],
-                     Gilliamella_panaroo_out[, c(1:13)],
-                     Snodgrassella_panaroo_out[, c(1:13)])
 num_samples <- 71
 ```
 
