@@ -7,6 +7,17 @@ setwd("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_
 spydrpick_hits <- list()
 
 
+Bifidobacterium_spydrpick <- read.table("Bifidobacterium/spydrpick_coevo_results/gene_pa_spydrpick.csv",
+                              header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "")
+Bifidobacterium_spydrpick$GeneA <- paste("Bifidobacterium", Bifidobacterium_spydrpick$GeneA, sep = "_")
+Bifidobacterium_spydrpick$GeneB <- paste("Bifidobacterium", Bifidobacterium_spydrpick$GeneB, sep = "_")
+
+Bifidobacterium_spydrpick_genes <- Bifidobacterium_spydrpick[, c("GeneA", "GeneB")]
+Bifidobacterium_spydrpick_genes_sort <- t(apply(Bifidobacterium_spydrpick_genes, 1, sort))
+
+spydrpick_hits[["Bifidobacterium"]] <- paste(Bifidobacterium_spydrpick_genes_sort[, 1], Bifidobacterium_spydrpick_genes_sort[, 2])
+
+
 Firm5_spydrpick <- read.table("Firm5/spydrpick_coevo_results/gene_pa_spydrpick.csv",
                               header = TRUE, sep = ",", stringsAsFactors = FALSE, quote = "", comment.char = "")
 Firm5_spydrpick$GeneA <- paste("Firm5", Firm5_spydrpick$GeneA, sep = "_")

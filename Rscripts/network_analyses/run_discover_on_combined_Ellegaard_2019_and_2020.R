@@ -5,7 +5,7 @@ rm(list = ls(all.names = TRUE))
 
 library("discover")
 
-pandora_output_noncore <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_multisample.filt.noncore.matrix",
+pandora_output_noncore <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_out_illumina/pandora_multisample.filt.noncore.matrix",
                              header = TRUE, sep = "\t", row.names = 1)
 
 # Remove non-core genes present in all or missing in all samples.
