@@ -4,6 +4,9 @@ from __future__ import print_function
 
 import glob
 
+import sys
+import os
+
 # Code below taken from https://github.com/cssmillie/StrainFinder
 import argparse, copy, cPickle, itertools, os.path, random, sys, time, uuid
 import numpy as np
@@ -1067,6 +1070,9 @@ def main():
     args = parser.parse_args()
 
     id2file = dict()
+
+    if not os.path.exists(args.input):
+        sys.exit("Input folder does not exist.")
 
     EM_files = glob.glob(args.input + '/*cpickle')
 

@@ -59,7 +59,7 @@ cd strain_fitting
 
 FILTERED_ALIGN="$WORKING_DIR_NAME.np.cPickle"
 
-for i in $( seq 2 $MAX_NUM_STRAINS_TO_TEST); do
+for i in $( seq 1 $MAX_NUM_STRAINS_TO_TEST); do
 	echo "python $STRAINFINDER_FOLDER/StrainFinder_edit.py \
                                                                  --aln ../$FILTERED_ALIGN \
                                                                  -N $i \
@@ -78,8 +78,9 @@ for i in $( seq 2 $MAX_NUM_STRAINS_TO_TEST); do
                                                                  --msg" >> ../StrainFinder_cmds.sh
 done
 
-
 cat ../StrainFinder_cmds.sh | parallel -j $NUM_CORE '{}'
+
+cd ..
 
 python $PATH_TO_SCRIPTS/summarize_strainfinder_AICs.py \
              -i strain_fitting \
