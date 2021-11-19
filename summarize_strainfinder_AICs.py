@@ -1065,7 +1065,7 @@ def main():
                              "cpickle files) in cpickle file names after splitting on "
                              "specified delimiter (0-based). Note that only the "
                              "filename, not the path, will be considered.",
-                        required=False, type=int, default=1)
+                        required=False, type=int, default=2)
 
     args = parser.parse_args()
 
