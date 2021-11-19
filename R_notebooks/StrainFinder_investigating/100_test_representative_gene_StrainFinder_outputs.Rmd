@@ -1,0 +1,1207 @@
+---
+title: Summarize StrainFinder results for the 100 test genes that were run. Do this for best-hit, pandora w struct and pandora w/o structs
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+library(cowplot)
+library(ggplot2)
+library(ComplexHeatmap)
+library(kableExtra)
+library(knitr)
+library(reshape2)
+```
+
+```{r read_tested_genes}
+tested_genes <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/all_test_genes.txt",
+                           header = FALSE, stringsAsFactors = FALSE)$V1
+```
+
+# Output for 10 random genes {.tabset}
+
+These genes: "Gilliamella_rbn_2", "Bifidobacterium_group_701", "Gilliamella_glyQ", "Snodgrassella_hprK", "Firm5_lacR_1", "Gilliamella_group_3395", "Bifidobacterium_afuB_1", "Snodgrassella_group_2053", "Bifidobacterium_group_916", and "Gilliamella_group_5151".
+
+## Gilliamella_rbn_2 {.tabset}
+
+### AIC distributions
+
+```{r Gilliamella_rbn_2_AICs}
+
+Gilliamella_rbn_2_besthit_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit//Gilliamella_rbn_2.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_rbn_2_besthit_AICs$Datatype <- "besthit"
+
+
+Gilliamella_rbn_2_pandora.nostruct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_no_struct/Gilliamella_rbn_2.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_rbn_2_pandora.nostruct_AICs$Datatype <- "pandora.nostruct"
+
+
+Gilliamella_rbn_2_pandora.struct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/Gilliamella_rbn_2.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_rbn_2_pandora.struct_AICs$Datatype <- "pandora.struct"
+
+
+Gilliamella_rbn_2_besthit_AICs_plot <- ggplot(data = Gilliamella_rbn_2_besthit_AICs, aes(x = ID, y = AIC)) +
+                                            geom_point() +
+                                            theme_bw() +
+                                            xlab("Number of strains") +
+                                            ggtitle("Best-hit")
+
+Gilliamella_rbn_2_pandora.nostruct_AICs_plot <- ggplot(data = Gilliamella_rbn_2_pandora.nostruct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (no structural)")
+
+
+Gilliamella_rbn_2_pandora.struct_AICs_plot <- ggplot(data = Gilliamella_rbn_2_pandora.struct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (with structural)")
+
+plot_grid(Gilliamella_rbn_2_besthit_AICs_plot, Gilliamella_rbn_2_pandora.nostruct_AICs_plot, Gilliamella_rbn_2_pandora.struct_AICs_plot, nrow = 1)
+```
+
+### Strain abundances {.tabset}
+
+#### Best-hit
+```{r Gilliamella_rbn_2_besthit_abun}
+Gilliamella_rbn_2_best_num_strain_best_fit <- as.character(Gilliamella_rbn_2_besthit_AICs[which(Gilliamella_rbn_2_besthit_AICs$AIC == min(Gilliamella_rbn_2_besthit_AICs$AIC)), "ID"])
+
+Gilliamella_rbn_2_best_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit/otu_tables/otu_table.Gilliamella_rbn_2.",
+                                                              Gilliamella_rbn_2_best_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_rbn_2_best_num_strain_best_fit_abun <- read.table(file = Gilliamella_rbn_2_best_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_rbn_2_best_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+#### Pandora (no structural)
+```{r Gilliamella_rbn_2_pandora_no.struct_abun}
+Gilliamella_rbn_2_pandora.nostruct_num_strain_best_fit <- as.character(Gilliamella_rbn_2_pandora.nostruct_AICs[which(Gilliamella_rbn_2_pandora.nostruct_AICs$AIC == min(Gilliamella_rbn_2_pandora.nostruct_AICs$AIC)), "ID"])
+
+Gilliamella_rbn_2_pandora.nostruct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output//pandora_prepped_no_struct/otu_tables/otu_table.Gilliamella_rbn_2.",
+                                                              Gilliamella_rbn_2_pandora.nostruct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_rbn_2_pandora.nostruct_num_strain_best_fit_abun <- read.table(file = Gilliamella_rbn_2_pandora.nostruct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_rbn_2_pandora.nostruct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+#### Pandora (with structural)
+```{r Gilliamella_rbn_2_pandora_struct_abun}
+Gilliamella_rbn_2_pandora.struct_num_strain_best_fit <- as.character(Gilliamella_rbn_2_pandora.struct_AICs[which(Gilliamella_rbn_2_pandora.struct_AICs$AIC == min(Gilliamella_rbn_2_pandora.struct_AICs$AIC)), "ID"])
+
+Gilliamella_rbn_2_pandora.struct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/otu_tables//otu_table.Gilliamella_rbn_2.",
+                                                              Gilliamella_rbn_2_pandora.struct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_rbn_2_pandora.struct_num_strain_best_fit_abun <- read.table(file = Gilliamella_rbn_2_pandora.struct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_rbn_2_pandora.struct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+
+## Bifidobacterium_group_701 {.tabset}
+
+### AIC distributions
+
+```{r Bifidobacterium_group_701_AICs}
+
+Bifidobacterium_group_701_besthit_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit//Bifidobacterium_group_701.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Bifidobacterium_group_701_besthit_AICs$Datatype <- "besthit"
+
+
+Bifidobacterium_group_701_pandora.nostruct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_no_struct/Bifidobacterium_group_701.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Bifidobacterium_group_701_pandora.nostruct_AICs$Datatype <- "pandora.nostruct"
+
+
+Bifidobacterium_group_701_pandora.struct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/Bifidobacterium_group_701.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Bifidobacterium_group_701_pandora.struct_AICs$Datatype <- "pandora.struct"
+
+
+Bifidobacterium_group_701_besthit_AICs_plot <- ggplot(data = Bifidobacterium_group_701_besthit_AICs, aes(x = ID, y = AIC)) +
+                                            geom_point() +
+                                            theme_bw() +
+                                            xlab("Number of strains") +
+                                            ggtitle("Best-hit")
+
+Bifidobacterium_group_701_pandora.nostruct_AICs_plot <- ggplot(data = Bifidobacterium_group_701_pandora.nostruct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (no structural)")
+
+
+Bifidobacterium_group_701_pandora.struct_AICs_plot <- ggplot(data = Bifidobacterium_group_701_pandora.struct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (with structural)")
+
+plot_grid(Bifidobacterium_group_701_besthit_AICs_plot, Bifidobacterium_group_701_pandora.nostruct_AICs_plot, Bifidobacterium_group_701_pandora.struct_AICs_plot, nrow = 1)
+```
+
+### Strain abundances {.tabset}
+
+#### Best-hit
+```{r Bifidobacterium_group_701_besthit_abun}
+Bifidobacterium_group_701_best_num_strain_best_fit <- as.character(Bifidobacterium_group_701_besthit_AICs[which(Bifidobacterium_group_701_besthit_AICs$AIC == min(Bifidobacterium_group_701_besthit_AICs$AIC)), "ID"])
+
+Bifidobacterium_group_701_best_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit/otu_tables/otu_table.Bifidobacterium_group_701.",
+                                                              Bifidobacterium_group_701_best_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Bifidobacterium_group_701_best_num_strain_best_fit_abun <- read.table(file = Bifidobacterium_group_701_best_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Bifidobacterium_group_701_best_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+#### Pandora (no structural)
+```{r Bifidobacterium_group_701_pandora_no.struct_abun}
+Bifidobacterium_group_701_pandora.nostruct_num_strain_best_fit <- as.character(Bifidobacterium_group_701_pandora.nostruct_AICs[which(Bifidobacterium_group_701_pandora.nostruct_AICs$AIC == min(Bifidobacterium_group_701_pandora.nostruct_AICs$AIC)), "ID"])
+
+Bifidobacterium_group_701_pandora.nostruct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output//pandora_prepped_no_struct/otu_tables/otu_table.Bifidobacterium_group_701.",
+                                                              Bifidobacterium_group_701_pandora.nostruct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Bifidobacterium_group_701_pandora.nostruct_num_strain_best_fit_abun <- read.table(file = Bifidobacterium_group_701_pandora.nostruct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Bifidobacterium_group_701_pandora.nostruct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+#### Pandora (with structural)
+```{r Bifidobacterium_group_701_pandora_struct_abun}
+Bifidobacterium_group_701_pandora.struct_num_strain_best_fit <- as.character(Bifidobacterium_group_701_pandora.struct_AICs[which(Bifidobacterium_group_701_pandora.struct_AICs$AIC == min(Bifidobacterium_group_701_pandora.struct_AICs$AIC)), "ID"])
+
+Bifidobacterium_group_701_pandora.struct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/otu_tables//otu_table.Bifidobacterium_group_701.",
+                                                              Bifidobacterium_group_701_pandora.struct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Bifidobacterium_group_701_pandora.struct_num_strain_best_fit_abun <- read.table(file = Bifidobacterium_group_701_pandora.struct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Bifidobacterium_group_701_pandora.struct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+## Gilliamella_glyQ {.tabset}
+
+### AIC distributions
+
+```{r Gilliamella_glyQ_AICs}
+
+Gilliamella_glyQ_besthit_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit//Gilliamella_glyQ.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_glyQ_besthit_AICs$Datatype <- "besthit"
+
+
+Gilliamella_glyQ_pandora.nostruct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_no_struct/Gilliamella_glyQ.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_glyQ_pandora.nostruct_AICs$Datatype <- "pandora.nostruct"
+
+
+Gilliamella_glyQ_pandora.struct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/Gilliamella_glyQ.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_glyQ_pandora.struct_AICs$Datatype <- "pandora.struct"
+
+
+Gilliamella_glyQ_besthit_AICs_plot <- ggplot(data = Gilliamella_glyQ_besthit_AICs, aes(x = ID, y = AIC)) +
+                                            geom_point() +
+                                            theme_bw() +
+                                            xlab("Number of strains") +
+                                            ggtitle("Best-hit")
+
+Gilliamella_glyQ_pandora.nostruct_AICs_plot <- ggplot(data = Gilliamella_glyQ_pandora.nostruct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (no structural)")
+
+
+Gilliamella_glyQ_pandora.struct_AICs_plot <- ggplot(data = Gilliamella_glyQ_pandora.struct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (with structural)")
+
+plot_grid(Gilliamella_glyQ_besthit_AICs_plot, Gilliamella_glyQ_pandora.nostruct_AICs_plot, Gilliamella_glyQ_pandora.struct_AICs_plot, nrow = 1)
+```
+
+### Strain abundances {.tabset}
+
+#### Best-hit
+```{r Gilliamella_glyQ_besthit_abun}
+Gilliamella_glyQ_best_num_strain_best_fit <- as.character(Gilliamella_glyQ_besthit_AICs[which(Gilliamella_glyQ_besthit_AICs$AIC == min(Gilliamella_glyQ_besthit_AICs$AIC)), "ID"])
+
+Gilliamella_glyQ_best_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit/otu_tables/otu_table.Gilliamella_glyQ.",
+                                                              Gilliamella_glyQ_best_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_glyQ_best_num_strain_best_fit_abun <- read.table(file = Gilliamella_glyQ_best_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_glyQ_best_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+#### Pandora (no structural)
+```{r Gilliamella_glyQ_pandora_no.struct_abun}
+Gilliamella_glyQ_pandora.nostruct_num_strain_best_fit <- as.character(Gilliamella_glyQ_pandora.nostruct_AICs[which(Gilliamella_glyQ_pandora.nostruct_AICs$AIC == min(Gilliamella_glyQ_pandora.nostruct_AICs$AIC)), "ID"])
+
+Gilliamella_glyQ_pandora.nostruct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output//pandora_prepped_no_struct/otu_tables/otu_table.Gilliamella_glyQ.",
+                                                              Gilliamella_glyQ_pandora.nostruct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_glyQ_pandora.nostruct_num_strain_best_fit_abun <- read.table(file = Gilliamella_glyQ_pandora.nostruct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_glyQ_pandora.nostruct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+#### Pandora (with structural)
+```{r Gilliamella_glyQ_pandora_struct_abun}
+Gilliamella_glyQ_pandora.struct_num_strain_best_fit <- as.character(Gilliamella_glyQ_pandora.struct_AICs[which(Gilliamella_glyQ_pandora.struct_AICs$AIC == min(Gilliamella_glyQ_pandora.struct_AICs$AIC)), "ID"])
+
+Gilliamella_glyQ_pandora.struct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/otu_tables//otu_table.Gilliamella_glyQ.",
+                                                              Gilliamella_glyQ_pandora.struct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_glyQ_pandora.struct_num_strain_best_fit_abun <- read.table(file = Gilliamella_glyQ_pandora.struct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_glyQ_pandora.struct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+
+## Snodgrassella_hprK {.tabset}
+
+### AIC distributions
+
+```{r Snodgrassella_hprK_AICs}
+
+Snodgrassella_hprK_besthit_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit//Snodgrassella_hprK.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Snodgrassella_hprK_besthit_AICs$Datatype <- "besthit"
+
+
+Snodgrassella_hprK_pandora.nostruct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_no_struct/Snodgrassella_hprK.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Snodgrassella_hprK_pandora.nostruct_AICs$Datatype <- "pandora.nostruct"
+
+
+Snodgrassella_hprK_pandora.struct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/Snodgrassella_hprK.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Snodgrassella_hprK_pandora.struct_AICs$Datatype <- "pandora.struct"
+
+
+Snodgrassella_hprK_besthit_AICs_plot <- ggplot(data = Snodgrassella_hprK_besthit_AICs, aes(x = ID, y = AIC)) +
+                                            geom_point() +
+                                            theme_bw() +
+                                            xlab("Number of strains") +
+                                            ggtitle("Best-hit")
+
+Snodgrassella_hprK_pandora.nostruct_AICs_plot <- ggplot(data = Snodgrassella_hprK_pandora.nostruct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (no structural)")
+
+
+Snodgrassella_hprK_pandora.struct_AICs_plot <- ggplot(data = Snodgrassella_hprK_pandora.struct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (with structural)")
+
+plot_grid(Snodgrassella_hprK_besthit_AICs_plot, Snodgrassella_hprK_pandora.nostruct_AICs_plot, Snodgrassella_hprK_pandora.struct_AICs_plot, nrow = 1)
+```
+
+### Strain abundances {.tabset}
+
+#### Best-hit
+```{r Snodgrassella_hprK_besthit_abun}
+Snodgrassella_hprK_best_num_strain_best_fit <- as.character(Snodgrassella_hprK_besthit_AICs[which(Snodgrassella_hprK_besthit_AICs$AIC == min(Snodgrassella_hprK_besthit_AICs$AIC)), "ID"])
+
+Snodgrassella_hprK_best_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit/otu_tables/otu_table.Snodgrassella_hprK.",
+                                                              Snodgrassella_hprK_best_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Snodgrassella_hprK_best_num_strain_best_fit_abun <- read.table(file = Snodgrassella_hprK_best_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Snodgrassella_hprK_best_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+#### Pandora (no structural)
+```{r Snodgrassella_hprK_pandora_no.struct_abun}
+Snodgrassella_hprK_pandora.nostruct_num_strain_best_fit <- as.character(Snodgrassella_hprK_pandora.nostruct_AICs[which(Snodgrassella_hprK_pandora.nostruct_AICs$AIC == min(Snodgrassella_hprK_pandora.nostruct_AICs$AIC)), "ID"])
+
+Snodgrassella_hprK_pandora.nostruct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output//pandora_prepped_no_struct/otu_tables/otu_table.Snodgrassella_hprK.",
+                                                              Snodgrassella_hprK_pandora.nostruct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Snodgrassella_hprK_pandora.nostruct_num_strain_best_fit_abun <- read.table(file = Snodgrassella_hprK_pandora.nostruct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Snodgrassella_hprK_pandora.nostruct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+#### Pandora (with structural)
+```{r Snodgrassella_hprK_pandora_struct_abun}
+Snodgrassella_hprK_pandora.struct_num_strain_best_fit <- as.character(Snodgrassella_hprK_pandora.struct_AICs[which(Snodgrassella_hprK_pandora.struct_AICs$AIC == min(Snodgrassella_hprK_pandora.struct_AICs$AIC)), "ID"])
+
+Snodgrassella_hprK_pandora.struct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/otu_tables//otu_table.Snodgrassella_hprK.",
+                                                              Snodgrassella_hprK_pandora.struct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Snodgrassella_hprK_pandora.struct_num_strain_best_fit_abun <- read.table(file = Snodgrassella_hprK_pandora.struct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Snodgrassella_hprK_pandora.struct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+
+## Firm5_lacR_1 {.tabset}
+
+### AIC distributions
+
+```{r Firm5_lacR_1_AICs}
+
+Firm5_lacR_1_besthit_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit//Firm5_lacR_1.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Firm5_lacR_1_besthit_AICs$Datatype <- "besthit"
+
+
+Firm5_lacR_1_pandora.nostruct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_no_struct/Firm5_lacR_1.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Firm5_lacR_1_pandora.nostruct_AICs$Datatype <- "pandora.nostruct"
+
+
+Firm5_lacR_1_pandora.struct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/Firm5_lacR_1.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Firm5_lacR_1_pandora.struct_AICs$Datatype <- "pandora.struct"
+
+
+Firm5_lacR_1_besthit_AICs_plot <- ggplot(data = Firm5_lacR_1_besthit_AICs, aes(x = ID, y = AIC)) +
+                                            geom_point() +
+                                            theme_bw() +
+                                            xlab("Number of strains") +
+                                            ggtitle("Best-hit")
+
+Firm5_lacR_1_pandora.nostruct_AICs_plot <- ggplot(data = Firm5_lacR_1_pandora.nostruct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (no structural)")
+
+
+Firm5_lacR_1_pandora.struct_AICs_plot <- ggplot(data = Firm5_lacR_1_pandora.struct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (with structural)")
+
+plot_grid(Firm5_lacR_1_besthit_AICs_plot, Firm5_lacR_1_pandora.nostruct_AICs_plot, Firm5_lacR_1_pandora.struct_AICs_plot, nrow = 1)
+```
+
+### Strain abundances {.tabset}
+
+#### Best-hit
+```{r Firm5_lacR_1_besthit_abun}
+Firm5_lacR_1_best_num_strain_best_fit <- as.character(Firm5_lacR_1_besthit_AICs[which(Firm5_lacR_1_besthit_AICs$AIC == min(Firm5_lacR_1_besthit_AICs$AIC)), "ID"])
+
+Firm5_lacR_1_best_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit/otu_tables/otu_table.Firm5_lacR_1.",
+                                                              Firm5_lacR_1_best_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Firm5_lacR_1_best_num_strain_best_fit_abun <- read.table(file = Firm5_lacR_1_best_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Firm5_lacR_1_best_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+#### Pandora (no structural)
+```{r Firm5_lacR_1_pandora_no.struct_abun}
+Firm5_lacR_1_pandora.nostruct_num_strain_best_fit <- as.character(Firm5_lacR_1_pandora.nostruct_AICs[which(Firm5_lacR_1_pandora.nostruct_AICs$AIC == min(Firm5_lacR_1_pandora.nostruct_AICs$AIC)), "ID"])
+
+Firm5_lacR_1_pandora.nostruct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output//pandora_prepped_no_struct/otu_tables/otu_table.Firm5_lacR_1.",
+                                                              Firm5_lacR_1_pandora.nostruct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Firm5_lacR_1_pandora.nostruct_num_strain_best_fit_abun <- read.table(file = Firm5_lacR_1_pandora.nostruct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Firm5_lacR_1_pandora.nostruct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+#### Pandora (with structural)
+```{r Firm5_lacR_1_pandora_struct_abun}
+Firm5_lacR_1_pandora.struct_num_strain_best_fit <- as.character(Firm5_lacR_1_pandora.struct_AICs[which(Firm5_lacR_1_pandora.struct_AICs$AIC == min(Firm5_lacR_1_pandora.struct_AICs$AIC)), "ID"])
+
+Firm5_lacR_1_pandora.struct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/otu_tables//otu_table.Firm5_lacR_1.",
+                                                              Firm5_lacR_1_pandora.struct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Firm5_lacR_1_pandora.struct_num_strain_best_fit_abun <- read.table(file = Firm5_lacR_1_pandora.struct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Firm5_lacR_1_pandora.struct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+
+
+## Gilliamella_group_3395 {.tabset}
+
+### AIC distributions
+
+```{r Gilliamella_group_3395_AICs}
+
+Gilliamella_group_3395_besthit_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit//Gilliamella_group_3395.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_group_3395_besthit_AICs$Datatype <- "besthit"
+
+
+Gilliamella_group_3395_pandora.nostruct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_no_struct/Gilliamella_group_3395.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_group_3395_pandora.nostruct_AICs$Datatype <- "pandora.nostruct"
+
+
+Gilliamella_group_3395_pandora.struct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/Gilliamella_group_3395.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_group_3395_pandora.struct_AICs$Datatype <- "pandora.struct"
+
+
+Gilliamella_group_3395_besthit_AICs_plot <- ggplot(data = Gilliamella_group_3395_besthit_AICs, aes(x = ID, y = AIC)) +
+                                            geom_point() +
+                                            theme_bw() +
+                                            xlab("Number of strains") +
+                                            ggtitle("Best-hit")
+
+Gilliamella_group_3395_pandora.nostruct_AICs_plot <- ggplot(data = Gilliamella_group_3395_pandora.nostruct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (no structural)")
+
+
+Gilliamella_group_3395_pandora.struct_AICs_plot <- ggplot(data = Gilliamella_group_3395_pandora.struct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (with structural)")
+
+plot_grid(Gilliamella_group_3395_besthit_AICs_plot, Gilliamella_group_3395_pandora.nostruct_AICs_plot, Gilliamella_group_3395_pandora.struct_AICs_plot, nrow = 1)
+```
+
+### Strain abundances {.tabset}
+
+#### Best-hit
+```{r Gilliamella_group_3395_besthit_abun}
+Gilliamella_group_3395_best_num_strain_best_fit <- as.character(Gilliamella_group_3395_besthit_AICs[which(Gilliamella_group_3395_besthit_AICs$AIC == min(Gilliamella_group_3395_besthit_AICs$AIC)), "ID"])
+
+Gilliamella_group_3395_best_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit/otu_tables/otu_table.Gilliamella_group_3395.",
+                                                              Gilliamella_group_3395_best_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_group_3395_best_num_strain_best_fit_abun <- read.table(file = Gilliamella_group_3395_best_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_group_3395_best_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+#### Pandora (no structural)
+```{r Gilliamella_group_3395_pandora_no.struct_abun}
+Gilliamella_group_3395_pandora.nostruct_num_strain_best_fit <- as.character(Gilliamella_group_3395_pandora.nostruct_AICs[which(Gilliamella_group_3395_pandora.nostruct_AICs$AIC == min(Gilliamella_group_3395_pandora.nostruct_AICs$AIC)), "ID"])
+
+Gilliamella_group_3395_pandora.nostruct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output//pandora_prepped_no_struct/otu_tables/otu_table.Gilliamella_group_3395.",
+                                                              Gilliamella_group_3395_pandora.nostruct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_group_3395_pandora.nostruct_num_strain_best_fit_abun <- read.table(file = Gilliamella_group_3395_pandora.nostruct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_group_3395_pandora.nostruct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+#### Pandora (with structural)
+```{r Gilliamella_group_3395_pandora_struct_abun}
+Gilliamella_group_3395_pandora.struct_num_strain_best_fit <- as.character(Gilliamella_group_3395_pandora.struct_AICs[which(Gilliamella_group_3395_pandora.struct_AICs$AIC == min(Gilliamella_group_3395_pandora.struct_AICs$AIC)), "ID"])
+
+Gilliamella_group_3395_pandora.struct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/otu_tables//otu_table.Gilliamella_group_3395.",
+                                                              Gilliamella_group_3395_pandora.struct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_group_3395_pandora.struct_num_strain_best_fit_abun <- read.table(file = Gilliamella_group_3395_pandora.struct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_group_3395_pandora.struct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+
+
+## Bifidobacterium_afuB_1 {.tabset}
+
+### AIC distributions
+
+```{r Bifidobacterium_afuB_1_AICs}
+
+Bifidobacterium_afuB_1_besthit_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit//Bifidobacterium_afuB_1.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Bifidobacterium_afuB_1_besthit_AICs$Datatype <- "besthit"
+
+
+Bifidobacterium_afuB_1_pandora.nostruct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_no_struct/Bifidobacterium_afuB_1.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Bifidobacterium_afuB_1_pandora.nostruct_AICs$Datatype <- "pandora.nostruct"
+
+
+Bifidobacterium_afuB_1_pandora.struct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/Bifidobacterium_afuB_1.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Bifidobacterium_afuB_1_pandora.struct_AICs$Datatype <- "pandora.struct"
+
+
+Bifidobacterium_afuB_1_besthit_AICs_plot <- ggplot(data = Bifidobacterium_afuB_1_besthit_AICs, aes(x = ID, y = AIC)) +
+                                            geom_point() +
+                                            theme_bw() +
+                                            xlab("Number of strains") +
+                                            ggtitle("Best-hit")
+
+Bifidobacterium_afuB_1_pandora.nostruct_AICs_plot <- ggplot(data = Bifidobacterium_afuB_1_pandora.nostruct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (no structural)")
+
+
+Bifidobacterium_afuB_1_pandora.struct_AICs_plot <- ggplot(data = Bifidobacterium_afuB_1_pandora.struct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (with structural)")
+
+plot_grid(Bifidobacterium_afuB_1_besthit_AICs_plot, Bifidobacterium_afuB_1_pandora.nostruct_AICs_plot, Bifidobacterium_afuB_1_pandora.struct_AICs_plot, nrow = 1)
+```
+
+### Strain abundances {.tabset}
+
+#### Best-hit
+```{r Bifidobacterium_afuB_1_besthit_abun}
+Bifidobacterium_afuB_1_best_num_strain_best_fit <- as.character(Bifidobacterium_afuB_1_besthit_AICs[which(Bifidobacterium_afuB_1_besthit_AICs$AIC == min(Bifidobacterium_afuB_1_besthit_AICs$AIC)), "ID"])
+
+Bifidobacterium_afuB_1_best_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit/otu_tables/otu_table.Bifidobacterium_afuB_1.",
+                                                              Bifidobacterium_afuB_1_best_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Bifidobacterium_afuB_1_best_num_strain_best_fit_abun <- read.table(file = Bifidobacterium_afuB_1_best_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Bifidobacterium_afuB_1_best_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+#### Pandora (no structural)
+```{r Bifidobacterium_afuB_1_pandora_no.struct_abun}
+Bifidobacterium_afuB_1_pandora.nostruct_num_strain_best_fit <- as.character(Bifidobacterium_afuB_1_pandora.nostruct_AICs[which(Bifidobacterium_afuB_1_pandora.nostruct_AICs$AIC == min(Bifidobacterium_afuB_1_pandora.nostruct_AICs$AIC)), "ID"])
+
+Bifidobacterium_afuB_1_pandora.nostruct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output//pandora_prepped_no_struct/otu_tables/otu_table.Bifidobacterium_afuB_1.",
+                                                              Bifidobacterium_afuB_1_pandora.nostruct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Bifidobacterium_afuB_1_pandora.nostruct_num_strain_best_fit_abun <- read.table(file = Bifidobacterium_afuB_1_pandora.nostruct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Bifidobacterium_afuB_1_pandora.nostruct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+#### Pandora (with structural)
+```{r Bifidobacterium_afuB_1_pandora_struct_abun}
+Bifidobacterium_afuB_1_pandora.struct_num_strain_best_fit <- as.character(Bifidobacterium_afuB_1_pandora.struct_AICs[which(Bifidobacterium_afuB_1_pandora.struct_AICs$AIC == min(Bifidobacterium_afuB_1_pandora.struct_AICs$AIC)), "ID"])
+
+Bifidobacterium_afuB_1_pandora.struct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/otu_tables//otu_table.Bifidobacterium_afuB_1.",
+                                                              Bifidobacterium_afuB_1_pandora.struct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Bifidobacterium_afuB_1_pandora.struct_num_strain_best_fit_abun <- read.table(file = Bifidobacterium_afuB_1_pandora.struct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Bifidobacterium_afuB_1_pandora.struct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+
+
+## Snodgrassella_group_2053 {.tabset}
+
+### AIC distributions
+
+```{r Snodgrassella_group_2053_AICs}
+
+Snodgrassella_group_2053_besthit_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit//Snodgrassella_group_2053.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Snodgrassella_group_2053_besthit_AICs$Datatype <- "besthit"
+
+
+# No variation based on pandora so set to NA
+Snodgrassella_group_2053_pandora.nostruct_AICs <- data.frame(AIC=NA, ID=1:30)
+Snodgrassella_group_2053_pandora.struct_AICs <- data.frame(AIC=NA, ID=1:30)
+
+
+Snodgrassella_group_2053_besthit_AICs_plot <- ggplot(data = Snodgrassella_group_2053_besthit_AICs, aes(x = ID, y = AIC)) +
+                                            geom_point() +
+                                            theme_bw() +
+                                            xlab("Number of strains") +
+                                            ggtitle("Best-hit")
+
+Snodgrassella_group_2053_pandora.nostruct_AICs_plot <- ggplot(data = Snodgrassella_group_2053_pandora.nostruct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (no structural)")
+
+
+Snodgrassella_group_2053_pandora.struct_AICs_plot <- ggplot(data = Snodgrassella_group_2053_pandora.struct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (with structural)")
+
+plot_grid(Snodgrassella_group_2053_besthit_AICs_plot, Snodgrassella_group_2053_pandora.nostruct_AICs_plot, Snodgrassella_group_2053_pandora.struct_AICs_plot, nrow = 1)
+```
+
+### Strain abundances {.tabset}
+
+#### Best-hit
+```{r Snodgrassella_group_2053_besthit_abun}
+Snodgrassella_group_2053_best_num_strain_best_fit <- as.character(Snodgrassella_group_2053_besthit_AICs[which(Snodgrassella_group_2053_besthit_AICs$AIC == min(Snodgrassella_group_2053_besthit_AICs$AIC)), "ID"])
+
+Snodgrassella_group_2053_best_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit/otu_tables/otu_table.Snodgrassella_group_2053.",
+                                                              Snodgrassella_group_2053_best_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Snodgrassella_group_2053_best_num_strain_best_fit_abun <- read.table(file = Snodgrassella_group_2053_best_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Snodgrassella_group_2053_best_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+
+## Bifidobacterium_group_916 {.tabset}
+
+### AIC distributions
+
+```{r Bifidobacterium_group_916_AICs}
+
+Bifidobacterium_group_916_besthit_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit//Bifidobacterium_group_916.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Bifidobacterium_group_916_besthit_AICs$Datatype <- "besthit"
+
+
+Bifidobacterium_group_916_pandora.nostruct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_no_struct/Bifidobacterium_group_916.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Bifidobacterium_group_916_pandora.nostruct_AICs$Datatype <- "pandora.nostruct"
+
+
+Bifidobacterium_group_916_pandora.struct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/Bifidobacterium_group_916.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Bifidobacterium_group_916_pandora.struct_AICs$Datatype <- "pandora.struct"
+
+
+Bifidobacterium_group_916_besthit_AICs_plot <- ggplot(data = Bifidobacterium_group_916_besthit_AICs, aes(x = ID, y = AIC)) +
+                                            geom_point() +
+                                            theme_bw() +
+                                            xlab("Number of strains") +
+                                            ggtitle("Best-hit")
+
+Bifidobacterium_group_916_pandora.nostruct_AICs_plot <- ggplot(data = Bifidobacterium_group_916_pandora.nostruct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (no structural)")
+
+
+Bifidobacterium_group_916_pandora.struct_AICs_plot <- ggplot(data = Bifidobacterium_group_916_pandora.struct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (with structural)")
+
+plot_grid(Bifidobacterium_group_916_besthit_AICs_plot, Bifidobacterium_group_916_pandora.nostruct_AICs_plot, Bifidobacterium_group_916_pandora.struct_AICs_plot, nrow = 1)
+```
+
+### Strain abundances {.tabset}
+
+#### Best-hit
+```{r Bifidobacterium_group_916_besthit_abun}
+Bifidobacterium_group_916_best_num_strain_best_fit <- as.character(Bifidobacterium_group_916_besthit_AICs[which(Bifidobacterium_group_916_besthit_AICs$AIC == min(Bifidobacterium_group_916_besthit_AICs$AIC)), "ID"])
+
+Bifidobacterium_group_916_best_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit/otu_tables/otu_table.Bifidobacterium_group_916.",
+                                                              Bifidobacterium_group_916_best_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Bifidobacterium_group_916_best_num_strain_best_fit_abun <- read.table(file = Bifidobacterium_group_916_best_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Bifidobacterium_group_916_best_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+#### Pandora (no structural)
+```{r Bifidobacterium_group_916_pandora_no.struct_abun}
+Bifidobacterium_group_916_pandora.nostruct_num_strain_best_fit <- as.character(Bifidobacterium_group_916_pandora.nostruct_AICs[which(Bifidobacterium_group_916_pandora.nostruct_AICs$AIC == min(Bifidobacterium_group_916_pandora.nostruct_AICs$AIC)), "ID"])
+
+Bifidobacterium_group_916_pandora.nostruct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output//pandora_prepped_no_struct/otu_tables/otu_table.Bifidobacterium_group_916.",
+                                                              Bifidobacterium_group_916_pandora.nostruct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Bifidobacterium_group_916_pandora.nostruct_num_strain_best_fit_abun <- read.table(file = Bifidobacterium_group_916_pandora.nostruct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Bifidobacterium_group_916_pandora.nostruct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+#### Pandora (with structural)
+```{r Bifidobacterium_group_916_pandora_struct_abun}
+Bifidobacterium_group_916_pandora.struct_num_strain_best_fit <- as.character(Bifidobacterium_group_916_pandora.struct_AICs[which(Bifidobacterium_group_916_pandora.struct_AICs$AIC == min(Bifidobacterium_group_916_pandora.struct_AICs$AIC)), "ID"])
+
+Bifidobacterium_group_916_pandora.struct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/otu_tables//otu_table.Bifidobacterium_group_916.",
+                                                              Bifidobacterium_group_916_pandora.struct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Bifidobacterium_group_916_pandora.struct_num_strain_best_fit_abun <- read.table(file = Bifidobacterium_group_916_pandora.struct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Bifidobacterium_group_916_pandora.struct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+
+## Gilliamella_group_5151 {.tabset}
+
+### AIC distributions
+
+```{r Gilliamella_group_5151_AICs}
+
+Gilliamella_group_5151_pandora.nostruct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_no_struct/Gilliamella_group_5151.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_group_5151_pandora.nostruct_AICs$Datatype <- "pandora.nostruct"
+
+
+Gilliamella_group_5151_pandora.struct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/Gilliamella_group_5151.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_group_5151_pandora.struct_AICs$Datatype <- "pandora.struct"
+
+Gilliamella_group_5151_pandora.nostruct_AICs_plot <- ggplot(data = Gilliamella_group_5151_pandora.nostruct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (no structural)")
+
+
+Gilliamella_group_5151_pandora.struct_AICs_plot <- ggplot(data = Gilliamella_group_5151_pandora.struct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (with structural)")
+
+plot_grid(Gilliamella_group_5151_pandora.nostruct_AICs_plot, Gilliamella_group_5151_pandora.struct_AICs_plot, nrow = 1)
+```
+
+### Strain abundances {.tabset}
+
+#### Pandora (no structural)
+```{r Gilliamella_group_5151_pandora_no.struct_abun}
+Gilliamella_group_5151_pandora.nostruct_num_strain_best_fit <- as.character(Gilliamella_group_5151_pandora.nostruct_AICs[which(Gilliamella_group_5151_pandora.nostruct_AICs$AIC == min(Gilliamella_group_5151_pandora.nostruct_AICs$AIC)), "ID"])
+
+Gilliamella_group_5151_pandora.nostruct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output//pandora_prepped_no_struct/otu_tables/otu_table.Gilliamella_group_5151.",
+                                                              Gilliamella_group_5151_pandora.nostruct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_group_5151_pandora.nostruct_num_strain_best_fit_abun <- read.table(file = Gilliamella_group_5151_pandora.nostruct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_group_5151_pandora.nostruct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+#### Pandora (with structural)
+```{r Gilliamella_group_5151_pandora_struct_abun}
+Gilliamella_group_5151_pandora.struct_num_strain_best_fit <- as.character(Gilliamella_group_5151_pandora.struct_AICs[which(Gilliamella_group_5151_pandora.struct_AICs$AIC == min(Gilliamella_group_5151_pandora.struct_AICs$AIC)), "ID"])
+
+Gilliamella_group_5151_pandora.struct_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/otu_tables//otu_table.Gilliamella_group_5151.",
+                                                              Gilliamella_group_5151_pandora.struct_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_group_5151_pandora.struct_num_strain_best_fit_abun <- read.table(file = Gilliamella_group_5151_pandora.struct_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_group_5151_pandora.struct_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+# Compare number of inferred strains across all approaches {.tabset}
+
+```{r determine_num_strains}
+
+num_strains_by_gene <- data.frame(matrix(NA, nrow = length(tested_genes), ncol = 3))
+rownames(num_strains_by_gene) <- tested_genes
+colnames(num_strains_by_gene) <- c("besthit", "pandora_prepped_no_struct", "pandora_prepped_w_struct")
+
+for (gene in tested_genes) {
+  
+  besthit_AIC_file <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit/", gene, ".strain_fit_summary.tsv", sep = "")
+  
+  if (file.exists(besthit_AIC_file)) {
+    
+    besthit_AICs <- read.table(besthit_AIC_file, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+    
+    if (nrow(besthit_AICs) > 0) {
+      num_strains_by_gene[gene, "besthit"] <- besthit_AICs[which(besthit_AICs$AIC == min(besthit_AICs$AIC)), "ID"]
+    }
+  } else {
+    num_strains_by_gene[gene, "besthit"] <- 1
+  }
+
+  
+  
+  pandora_prepped_no_struct_AIC_file <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_no_struct/", gene, ".strain_fit_summary.tsv", sep = "")
+  
+  if (file.exists(pandora_prepped_no_struct_AIC_file)) {
+    
+    pandora_prepped_no_struct_AICs <- read.table(pandora_prepped_no_struct_AIC_file, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+    
+    if (nrow(pandora_prepped_no_struct_AICs) > 0) {
+      num_strains_by_gene[gene, "pandora_prepped_no_struct"] <- pandora_prepped_no_struct_AICs[which(pandora_prepped_no_struct_AICs$AIC == min(pandora_prepped_no_struct_AICs$AIC)), "ID"]
+    }
+  } else {
+    num_strains_by_gene[gene, "pandora_prepped_no_struct"] <- 1
+  }
+  
+  
+  pandora_prepped_w_struct_AIC_file <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/", gene, ".strain_fit_summary.tsv", sep = "")
+  
+  if (file.exists(pandora_prepped_w_struct_AIC_file)) {
+    
+    pandora_prepped_w_struct_AICs <- read.table(pandora_prepped_w_struct_AIC_file, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+    
+    if (nrow(pandora_prepped_w_struct_AICs) > 0) {
+      num_strains_by_gene[gene, "pandora_prepped_w_struct"] <- pandora_prepped_w_struct_AICs[which(pandora_prepped_w_struct_AICs$AIC == min(pandora_prepped_w_struct_AICs$AIC)), "ID"]
+    }
+  } else {
+    num_strains_by_gene[gene, "pandora_prepped_w_struct"] <- 1
+  }
+  
+}
+
+```
+
+## Best-hit vs pandora prepped (no struct)
+
+```{r besthit_vs_pandora_prepped_no_struct}
+
+besthit_vs_pandora_prepped_no_struct_df <- data.frame(matrix(NA, nrow = 30 * 30, ncol = 3))
+colnames(besthit_vs_pandora_prepped_no_struct_df) <- c("besthit_num", "no_struct_num", "num_intersect_observed")
+
+row_i <- 1
+for (i in 1:30) {
+  for (j in 1:30) {
+      besthit_vs_pandora_prepped_no_struct_df[row_i, c("besthit_num", "no_struct_num")] <- c(i, j)
+      
+      besthit_vs_pandora_prepped_no_struct_df[row_i, "num_intersect_observed"] <- length(which((num_strains_by_gene$besthit == i) & (num_strains_by_gene$pandora_prepped_no_struct == j)))
+      row_i <- row_i + 1
+  }
+}
+
+ggplot(data = besthit_vs_pandora_prepped_no_struct_df, aes(x = besthit_num, y = no_struct_num, fill = num_intersect_observed)) +
+  geom_tile() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1) +
+  scale_fill_continuous(low="white", high="darkred") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+```
+
+
+
+## Best-hit vs pandora prepped (w struct)
+
+```{r besthit_vs_pandora_prepped_w_struct}
+
+besthit_vs_pandora_prepped_w_struct_df <- data.frame(matrix(NA, nrow = 30 * 30, ncol = 3))
+colnames(besthit_vs_pandora_prepped_w_struct_df) <- c("besthit_num", "w_struct_num", "num_intersect_observed")
+
+row_i <- 1
+for (i in 1:30) {
+  for (j in 1:30) {
+      besthit_vs_pandora_prepped_w_struct_df[row_i, c("besthit_num", "w_struct_num")] <- c(i, j)
+      
+      besthit_vs_pandora_prepped_w_struct_df[row_i, "num_intersect_observed"] <- length(which((num_strains_by_gene$besthit == i) & (num_strains_by_gene$pandora_prepped_w_struct == j)))
+      row_i <- row_i + 1
+  }
+}
+
+ggplot(data = besthit_vs_pandora_prepped_w_struct_df, aes(x = besthit_num, y = w_struct_num, fill = num_intersect_observed)) +
+  geom_tile() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1) +
+  scale_fill_continuous(low="white", high="darkred") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+```
+
+
+## Pandora prepped (w struct vs no struct)
+
+```{r pandora_prepped_w_struct_vs_pandora_prepped_no_struct}
+
+pandora_prepped_w_struct_vs_pandora_prepped_no_struct_df <- data.frame(matrix(NA, nrow = 30 * 30, ncol = 3))
+colnames(pandora_prepped_w_struct_vs_pandora_prepped_no_struct_df) <- c("pandora_prepped_w_struct_num", "no_struct_num", "num_intersect_observed")
+
+row_i <- 1
+for (i in 1:30) {
+  for (j in 1:30) {
+      pandora_prepped_w_struct_vs_pandora_prepped_no_struct_df[row_i, c("pandora_prepped_w_struct_num", "no_struct_num")] <- c(i, j)
+      
+      pandora_prepped_w_struct_vs_pandora_prepped_no_struct_df[row_i, "num_intersect_observed"] <- length(which((num_strains_by_gene$pandora_prepped_w_struct == i) & (num_strains_by_gene$pandora_prepped_no_struct == j)))
+      row_i <- row_i + 1
+  }
+}
+
+ggplot(data = pandora_prepped_w_struct_vs_pandora_prepped_no_struct_df, aes(x = pandora_prepped_w_struct_num, y = no_struct_num, fill = num_intersect_observed)) +
+  geom_tile() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1) +
+  scale_fill_continuous(low="white", high="darkred") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+```
+
+# Session info {.tabset}
+
+## Hide session info
+
+## Show session info
+
+Session details printed out for reproducibility.
+
+```{r session_info}
+sessionInfo()
+```
