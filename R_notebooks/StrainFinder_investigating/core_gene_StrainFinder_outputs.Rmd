@@ -76,6 +76,13 @@ Bifidobacterium_best_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/pro
 Bifidobacterium_best_num_strain_best_fit_abun <- read.table(file = Bifidobacterium_best_num_strain_best_fit_abun_path,
                                                               header = FALSE, sep = "\t", skip = 1)
 
+Bifidobacterium_best_num_strain_best_fit_abun_filt <- Bifidobacterium_best_num_strain_best_fit_abun
+Bifidobacterium_best_num_strain_best_fit_abun_filt[Bifidobacterium_best_num_strain_best_fit_abun_filt < 0.1] <- 0
+Heatmap(Bifidobacterium_best_num_strain_best_fit_abun_filt,
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples")
+
 Heatmap(log(as.matrix(Bifidobacterium_best_num_strain_best_fit_abun +  1e-08)),
         show_column_names = FALSE,
         column_title = "Strains",

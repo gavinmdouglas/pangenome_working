@@ -73,6 +73,7 @@ def main():
     # Dict to keep track of structural alleles to be written to a separate file
     # (if --keep_structural was specified).
     structural_alleles = dict()
+    structural_allele_ref = dict()
 
     # Counts to keep track of:
     num_struct_ignored = 0
@@ -181,6 +182,7 @@ def main():
 
             if structural:
                 structural_alleles[position] = alleles
+                structural_allele_ref[position] = record.REF
 
             variant_positions.append(position)
 
@@ -232,7 +234,8 @@ def main():
         final_structural_pos = []
         with open(site_outfile, 'w') as site_fh:
             for site_i in sites_to_keep:
-                print(variant_positions[site_i], file = site_fh)
+                print("\t".join(variant_positions[site_i].split(';')),
+                      file = site_fh)
 
                 if variant_positions[site_i] in structural_alleles.keys():
                     final_structural_pos.append(variant_positions[site_i])
@@ -240,7 +243,8 @@ def main():
         structured_alleles_outfile = args.output_prefix + "_structured_alleles.txt"
         with open(structured_alleles_outfile, 'w') as structured_alleles_fh:
             for structured_allele_pos in final_structural_pos:
-                print(structured_allele_pos + "\t" + ",".join(structural_alleles[structured_allele_pos]),
+                structured_allele_pos_clean = "\t".join(structured_allele_pos.split(';'))
+                print(structured_allele_pos_clean + "\t" + structural_allele_ref[structured_allele_pos] + "\t" + ",".join(structural_alleles[structured_allele_pos]),
                       file = structured_alleles_fh)
     else:
         with open(site_outfile, 'w') as site_fh:

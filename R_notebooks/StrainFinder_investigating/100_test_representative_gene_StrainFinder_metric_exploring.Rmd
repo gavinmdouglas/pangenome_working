@@ -1,0 +1,111 @@
+---
+title: Summarize metrics based on StrainFinder results for the 100 test genes that were run
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(knitr)
+```
+
+```{r read_tested_gene_metrics}
+tested_gene_metrics <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/gene_haplotype_metrics.tsv",
+                                  header = TRUE, stringsAsFactors = FALSE, sep = "\t")
+```
+
+# Metrics vs prevalence across reference genomes {.tabset}
+
+```{r refgenome_prevalence_loop_all_metrics, results = 'asis', echo = FALSE}
+
+for (metric in colnames(tested_gene_metrics)) {
+  
+  if (metric %in% c("gene", "phylotype", "num_ref_genomes", "percent_ref_genomes")) { next }
+  
+  cat('\n\n')
+
+  cat('## ', metric, '\n\n')
+  
+  loop_plot <- ggplot(data = tested_gene_metrics, aes_string(x = "percent_ref_genomes", y = metric, colour = "phylotype")) +
+                      scale_colour_manual(values = c("#8675ca", "#9b9d3f", "#c9578c", "#50ac72", "#c96840")) +
+                      geom_point(size = 3) +                                                                                                               
+                      scale_x_continuous(limits = c(0, NA)) +
+                      scale_y_continuous(limits = c(0, NA))
+                      
+  print(loop_plot)
+  
+  cat('\n\n')
+}
+
+```
+
+
+# Metrics vs prevalence across samples {.tabset}
+
+```{r sample_prevalence_loop_all_metrics, results = 'asis', echo = FALSE}
+
+for (metric in colnames(tested_gene_metrics)) {
+  
+  if (metric %in% c("gene", "phylotype", "sample_presence", "num_ref_genomes", "percent_ref_genomes")) { next }
+  
+  cat('\n\n')
+
+  cat('## ', metric, '\n\n')
+  
+  loop_plot <- ggplot(data = tested_gene_metrics, aes_string(x = "sample_presence", y = metric, colour = "phylotype")) +
+                      scale_colour_manual(values = c("#8675ca", "#9b9d3f", "#c9578c", "#50ac72", "#c96840")) +
+                      geom_point(size = 3) +
+                      scale_x_continuous(limits = c(0, NA)) +
+                      scale_y_continuous(limits = c(0, NA))
+                      
+  print(loop_plot)
+  
+  cat('\n\n')
+}
+
+```
+
+
+
+# Metrics vs number of total haplotypes {.tabset}
+
+```{r total_haplotypes_loop_all_metrics, results = 'asis', echo = FALSE}
+for (metric in colnames(tested_gene_metrics)) {
+  
+  if (metric %in% c("gene", "phylotype", "total_num_haplotypes", "sample_presence", "num_ref_genomes", "percent_ref_genomes")) { next }
+  
+  cat('\n\n')
+
+  cat('## ', metric, '\n\n')
+  
+  loop_plot <- ggplot(data = tested_gene_metrics, aes_string(x = "total_num_haplotypes", y = metric, colour = "phylotype")) +
+                      scale_colour_manual(values = c("#8675ca", "#9b9d3f", "#c9578c", "#50ac72", "#c96840")) +
+                      geom_point(size = 3) +
+                      scale_x_continuous(limits = c(0, NA)) +
+                      scale_y_continuous(limits = c(0, NA))
+                      
+  print(loop_plot)
+  
+  cat('\n\n')
+}
+
+```
+
+
+# Session info {.tabset}
+
+## Hide session info
+
+## Show session info
+
+Session details printed out for reproducibility.
+
+```{r session_info}
+sessionInfo()
+```
