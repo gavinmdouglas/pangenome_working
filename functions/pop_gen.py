@@ -1,6 +1,59 @@
 #!/usr/bin/python3
 
 from math import sqrt
+import numpy as np
+import itertools
+import sys
+
+def tajimas_d_and_diversity_metrics(in_seqs):
+    '''Return n, S, Watterson's theta, nucleotide diversity, and Tajima's D as a tuple
+    for a list of input sequences.'''
+
+    (theta_pi, S) = calc_theta_pi_and_num_segregating(in_seqs)
+
+    N = len(in_seqs)
+
+    (tajimas_d, wattersons_theta) = tajimas_d_and_wattersons_theta(theta_pi, S, N)
+
+    return((N, S, wattersons_theta, theta_pi, tajimas_d))
+
+
+def calc_theta_pi_and_num_segregating(in_seqs):
+    '''Calculate and return Theta Pi as well as the number of segregating
+    sites as a tuple. Note: this function will not count polymorphisms
+    where pairwise seqs do not have bases that are on of A, C, G, or T.'''
+
+    bases = ['A', 'C', 'G', 'T']
+
+    pairwise_comparisons = list(itertools.combinations(in_seqs, 2))
+
+    segregating_sites = set()
+
+    pairwise_diffs = []
+
+    for combo in pairwise_comparisons:
+
+        num_diff = 0
+
+        seq1 = combo[0]
+        seq2 = combo[1]
+
+        if len(seq1) != len(seq2):
+            print(seq1)
+            print(seq2)
+            sys.exit('Stopping - lengths of input sequences do not match. They should be aligned!')
+
+        for i in range(len(seq1)):
+        
+            if seq1[i] != seq2[i]:
+                if seq1[i] in bases and seq2[i] in bases:
+                    num_diff += 1
+                    segregating_sites.add(i)
+
+        pairwise_diffs.append(num_diff)
+
+    return((np.mean(pairwise_diffs), len(segregating_sites)))
+
 
 def num_pairwise_diff_bases(bases):
     '''Will return the number of differences for a set of bases. Note: this
@@ -47,7 +100,10 @@ def tajimas_d_and_wattersons_theta(theta_pi, num_seg_sites, n):
 
     wattersons_theta = num_seg_sites / a1
 
-    tajimas_d = (theta_pi - wattersons_theta) / expected_sd
+    if expected_sd == 0:
+        tajimas_d = float("NaN")
+    else:
+        tajimas_d = (theta_pi - wattersons_theta) / expected_sd
 
     return(tajimas_d, wattersons_theta)
 
