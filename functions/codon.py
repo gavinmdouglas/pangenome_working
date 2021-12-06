@@ -84,8 +84,8 @@ def stop_codon_premature_present(seq, start_codon_position):
     if not start_codon_position:
         start_codon_position = 9
 
-    premature_stop_codon_position = None
-    percent_truncated = None
+    premature_stop_codon_position = float('NaN')
+    percent_truncated = float('NaN')
 
     stop_codon_calls = set()
 
@@ -113,15 +113,13 @@ def stop_codon_premature_present(seq, start_codon_position):
     last_four_codon_pos = codon_positions[-4:]
 
     final_stop_present = False
-    final_stop_position = None
+    final_stop_position = float('NaN')
 
     for j in last_four_codon_pos:
         codon = seq[j:j + 3]
 
         if len(codon) != 3:
             continue
-
-        print(codon)
 
         if check_ambig_match_dict(codon, codon2aa, 'STOP',
                                   all_possible_match = False):
@@ -131,18 +129,14 @@ def stop_codon_premature_present(seq, start_codon_position):
                 final_stop_position = j
 
             stop_codon_calls.remove(j)
-        
+
+    expected_stop_pos = codon_positions[-1]
 
     if len(stop_codon_calls) > 0:
         premature_stop_codon_position = min(list(stop_codon_calls))
 
-        if final_stop_position:
-            ref_stop_pos = final_stop_position
-        else:
-            ref_stop_pos = codon_positions[-1]
-
         # Twos in numerator just added for clarity - the twos in just general are included as the positions are from the *start* of the codon.
-        percent_truncated = ((ref_stop_pos + 2 - premature_stop_codon_position - 2) / (ref_stop_pos + 2)) * 100
+        percent_truncated = ((expected_stop_pos + 2 - premature_stop_codon_position - 2) / (expected_stop_pos + 2)) * 100
 
-    return((final_stop_present, final_stop_position, premature_stop_codon_position, percent_truncated))
+    return((final_stop_present, premature_stop_codon_position, expected_stop_pos, percent_truncated))
 

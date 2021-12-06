@@ -33,7 +33,7 @@ def main():
 
     seqs = read_fasta(args.input)
 
-    seq_info = pd.DataFrame(columns = ['start_codon_missing', 'stop_codon_missing', 'premature_stop_codon_number', 'expected_stop_codon_number', 'percent_truncated'],
+    seq_info = pd.DataFrame(columns = ['start_codon_missing', 'stop_codon_missing', 'premature_stop_position', 'expected_stop_position', 'percent_truncated'],
                             index = seqs.keys())
        
 
@@ -45,13 +45,19 @@ def main():
 
         (start_codon_present_flag, start_codon_position) = start_codon_present(seq)
 
-        start_codon_missing = not start_codon_present_flag
+        (final_stop_present, premature_stop_codon_position, expected_stop_pos, percent_truncated) = stop_codon_premature_present(seq, start_codon_position)
 
-        print(stop_codon_premature_present(seq, start_codon_position))
+        seq_info.loc[seq_id, 'start_codon_missing'] = not start_codon_present_flag
+        seq_info.loc[seq_id, 'stop_codon_missing'] = not final_stop_present
+        seq_info.loc[seq_id, 'premature_stop_position'] = premature_stop_codon_position
+        seq_info.loc[seq_id, 'expected_stop_position'] = expected_stop_pos
+        seq_info.loc[seq_id, 'percent_truncated'] = percent_truncated
 
+    seq_info.to_csv(args.output, sep = "\t", header = True, na_rep='NA',
+                    index_label = 'sequence')
 
-   #haplotype_dnds.to_csv(args.out_prefix + "_pairwise_haplotype_dnds.tsv",
-    #                      sep = "\t", header = True, na_rep='NA')
 
 if __name__ == '__main__':
+
     main()
+
