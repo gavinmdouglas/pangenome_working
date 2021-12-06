@@ -52,6 +52,7 @@ def check_ambig_match_dict(input_string, dict2check, expected_val, all_possible_
             possible_bases.append([base_i])
 
     if ambig_base_count == 0:
+        print(input_string, file = sys.stderr)
         sys.exit('Error - input string is not found in input dictionary and '
                  'also does not contain any ambiguous bases.')
 

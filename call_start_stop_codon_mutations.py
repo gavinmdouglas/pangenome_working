@@ -4,7 +4,7 @@ import argparse
 import os
 import sys
 from functions.io_utils import read_fasta
-from functions.codon import start_codon_present
+from functions.codon import start_codon_present, stop_codon_premature_present
 import pandas as pd
 import numpy as np
 
@@ -43,14 +43,11 @@ def main():
 
         seq = seq.upper()
 
-        (start_codon_present, start_codon_position) = start_codon_present(seq)
+        (start_codon_present_flag, start_codon_position) = start_codon_present(seq)
 
-        start_codon_missing = not start_codon_present
+        start_codon_missing = not start_codon_present_flag
 
-
-
-
-        print(start_codon_missing)
+        print(stop_codon_premature_present(seq, start_codon_position))
 
 
    #haplotype_dnds.to_csv(args.out_prefix + "_pairwise_haplotype_dnds.tsv",

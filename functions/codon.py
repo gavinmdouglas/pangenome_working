@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from functions.iupac import check_ambig_match_dict
+import sys
 
 codon2aa = {"TTT":"F", "TTC":"F",
             "TTA":"L", "TTG":"L",
@@ -76,6 +77,10 @@ def stop_codon_premature_present(seq, start_codon_position):
     of start codon, so that if the start codon is missing and/or a few codons in
     that a stop codon isn't called before it.'''
 
+    if len(seq) % 3 != 0:
+        print('Warning: gene sequence is not perfectly divisible by three.',
+              file = sys.stderr)
+
     if not start_codon_position:
         start_codon_position = 9
 
@@ -86,9 +91,12 @@ def stop_codon_premature_present(seq, start_codon_position):
 
     codon_positions = []
 
-    for i in range(stop = len(seq), step = 3):
+    for i in range(0, len(seq), 3):
 
         codon = seq[i:i + 3]
+
+        if len(codon) != 3:
+            continue
 
         codon_positions.append(i)
 
@@ -99,28 +107,42 @@ def stop_codon_premature_present(seq, start_codon_position):
                                   all_possible_match = True):
             stop_codon_calls.add(i)
 
-    expected_start_codon = seq[:3]
+    
+    # Re-check tail of gene while allowing for more ambiguous matches to stop
+    # codon
+    last_four_codon_pos = codon_positions[-4:]
 
-    if not check_ambig_match_dict(expected_start_codon, codon2aa, 'M'):
+    final_stop_present = False
+    final_stop_position = None
 
-        exp_start_neighbour1 = seq[3:6]
-        exp_start_neighbour2 = seq[6:9]
-        exp_start_neighbour3 = seq[9:12]
+    for j in last_four_codon_pos:
+        codon = seq[j:j + 3]
 
-        if check_ambig_match_dict(exp_start_neighbour1, codon2aa, 'M'):
-            start_codon_present = True
-            start_codon_position = 3
-        elif check_ambig_match_dict(exp_start_neighbour2, codon2aa, 'M'):
-            start_codon_present = True
-            start_codon_position = 6
-        elif check_ambig_match_dict(exp_start_neighbour3, codon2aa, 'M'):
-            start_codon_present = True
-            start_codon_position = 9
+        if len(codon) != 3:
+            continue
+
+        print(codon)
+
+        if check_ambig_match_dict(codon, codon2aa, 'STOP',
+                                  all_possible_match = False):
+
+            if not final_stop_present:
+                final_stop_present = True
+                final_stop_position = j
+
+            stop_codon_calls.remove(j)
+        
+
+    if len(stop_codon_calls) > 0:
+        premature_stop_codon_position = min(list(stop_codon_calls))
+
+        if final_stop_position:
+            ref_stop_pos = final_stop_position
         else:
-            start_codon_present = False
-    else:
-        start_codon_present = True
-        start_codon_position = 0
+            ref_stop_pos = codon_positions[-1]
 
-    return((start_codon_present, start_codon_position))
+        # Twos in numerator just added for clarity - the twos in just general are included as the positions are from the *start* of the codon.
+        percent_truncated = ((ref_stop_pos + 2 - premature_stop_codon_position - 2) / (ref_stop_pos + 2)) * 100
+
+    return((final_stop_present, final_stop_position, premature_stop_codon_position, percent_truncated))
 
