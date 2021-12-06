@@ -150,6 +150,9 @@ def main():
 
             num_alleles = len(alleles)
 
+            #if num_alleles == 1 and alleles[0] == record.REF:
+            #    continue
+
             if structural:
 
                 # Ignore structural mutations with more than 4 classes.

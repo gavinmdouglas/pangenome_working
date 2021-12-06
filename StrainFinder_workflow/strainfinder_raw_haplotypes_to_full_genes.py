@@ -3,7 +3,63 @@
 import argparse
 import os
 import sys
-from functions.io_utils import read_fasta, write_fasta
+import gzip
+import textwrap
+
+def read_fasta(filename, cut_header=False):
+    '''Read in FASTA file (gzipped or not) and return dictionary with each
+    independent sequence id as a key and the corresponding sequence string as
+    the value.'''
+
+    # Intitialize empty dict.
+    seq = {}
+
+    # Intitialize undefined str variable to contain the most recently parsed
+    # header name.
+    name = None
+
+    # Read in FASTA line-by-line.
+    if filename[-3:] == ".gz":
+        fasta_in = gzip.open(filename, "rt")
+    else:
+        fasta_in = open(filename, "r")
+
+    for line in fasta_in:
+
+        line = line.rstrip()
+
+        if len(line) == 0:
+            continue
+
+        # If header-line then split by whitespace, take the first element,
+        # and define the sequence name as everything after the ">".
+        if line[0] == ">":
+
+            if cut_header:
+                name = line.split()[0][1:]
+            else:
+                name = line[1:]
+
+            name = name.rstrip("\r\n")
+
+            # Make sure that sequence id is not already in dictionary.
+            if name in seq:
+                sys.stderr("Stopping due to duplicated id in file: " + name)
+
+            # Intitialize empty sequence with this id.
+            seq[name] = ""
+
+        else:
+            # Remove line terminator/newline characters.
+            line = line.rstrip("\r\n")
+
+            # Add sequence to dictionary.
+            seq[name] += line
+
+    fasta_in.close()
+
+    return seq
+
 
 def main():
 
@@ -79,12 +135,12 @@ def main():
 
                 struct_variant_refs[pos] = ref_allele
 
+    out_fasta = open(args.output, 'w')
 
-    haplotype_seqs = dict()
     haplotype_num = 1
 
     for h in haplotypes:
-        
+
         full_seq = original_gene
 
         # Note that as the structural variants can change the overall sequence
@@ -93,20 +149,24 @@ def main():
         variant_num = len(haplotypes[0]) - 1
 
         for var_pos in sorted(variant_positions, reverse = True):
-            
+
             site_i = var_pos - 1
 
             if var_pos in struct_variants:
 
                 ref_allele = struct_variant_refs[var_pos]
 
-                obs_ref_allele = full_seq[site_i:site_i + len(ref_allele)]
+                if h[variant_num] in struct_variants[var_pos].keys() and struct_variants[var_pos][h[variant_num]] != ref_allele:
 
-                if ref_allele != obs_ref_allele:
-                    print(ref_allele + "\t" + obs_ref_allele)
-                    sys.exit("Structural ref alleles do not match at position " + str(var_pos))
+                    obs_ref_allele = full_seq[site_i:site_i + len(ref_allele)]
 
-                full_seq = full_seq[0:site_i] + struct_variants[var_pos][h[variant_num]] + full_seq[site_i + len(ref_allele):]
+                    if ref_allele != obs_ref_allele:
+                        print("\n" + ref_allele + "\t" + obs_ref_allele, file = sys.stderr)
+                        print("Structural ref alleles do not match at position " + str(var_pos), file = sys.stderr)
+                        print("Current strategy is just to not add in this struc variant as it must be discordant with another variant.", file = sys.stderr)
+                        #sys.exit("Structural ref alleles do not match at position " + str(var_pos))
+                    else:
+                        full_seq = full_seq[0:site_i] + struct_variants[var_pos][h[variant_num]] + full_seq[site_i + len(ref_allele):]
 
             else:
 
@@ -114,11 +174,12 @@ def main():
 
             variant_num -= 1
 
-        haplotype_seqs["haplotype" + str(haplotype_num) + "_" + args.gene_name.replace(".fa", "")] = full_seq
+        out_fasta.write(">haplotype" + str(haplotype_num) + "_" + args.gene_name.replace(".fa", "") + "\n")
+        out_fasta.write(textwrap.fill(full_seq, width=70) + "\n")
 
         haplotype_num += 1
 
-    write_fasta(haplotype_seqs, args.output)
+    out_fasta.close()
 
 
 if __name__ == '__main__':
