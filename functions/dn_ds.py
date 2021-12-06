@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-from functions.codon_table import codon2aa
+from functions.codon import codon2aa
 from math import log
 
 
