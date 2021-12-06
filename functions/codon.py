@@ -31,11 +31,12 @@ codon2aa = {"TTT":"F", "TTC":"F",
 
 
 def start_codon_present(seq):
-    '''Check that start codon is present in an input DNA sequence of gene.
-    Will call it present if it's within the first four codons. If any
+    '''Check that start codon is present in an input DNA sequence of gene at the very beginning.
+    If not present will check to see when the first start codon occurs. If any
     ambiguous bases present then will only call it not present if none of
-    the possible codons match. Also, return the position of the start codon if
-    present.'''
+    the possible codons match. Also, return the position of the first start codon if
+    present. If there is no canonical start codon, but a non-canonical start codon is present,
+    then return the percent of the overall gene that is truncated.'''
 
     start_codon_position = None
 
@@ -43,35 +44,34 @@ def start_codon_present(seq):
 
     if not check_ambig_match_dict(expected_start_codon, codon2aa, 'M'):
 
-        exp_start_neighbour1 = seq[3:6]
-        exp_start_neighbour2 = seq[6:9]
-        exp_start_neighbour3 = seq[9:12]
+        exp_start_codon_present = False
 
-        if check_ambig_match_dict(exp_start_neighbour1, codon2aa, 'M'):
-            start_codon_present = True
-            start_codon_position = 3
-        elif check_ambig_match_dict(exp_start_neighbour2, codon2aa, 'M'):
-            start_codon_present = True
-            start_codon_position = 6
-        elif check_ambig_match_dict(exp_start_neighbour3, codon2aa, 'M'):
-            start_codon_present = True
-            start_codon_position = 9
-        else:
-            start_codon_present = False
+        for i in range(3, len(seq), 3):
+
+            codon = seq[i:i + 3]
+
+            if len(codon) != 3:
+                continue
+
+            if check_ambig_match_dict(codon, codon2aa, 'M'):
+                start_codon_position = i
+
     else:
-        start_codon_present = True
+        exp_start_codon_present = True
         start_codon_position = 0
 
-    return((start_codon_present, start_codon_position))
+    if not exp_start_codon_present and start_codon_position:
+        leading_percent_truncated = (start_codon_position / len(seq)) * 100
+    else:
+        leading_percent_truncated = float('NaN')
 
-
+    return((exp_start_codon_present, start_codon_position, leading_percent_truncated))
 
 
 def stop_codon_premature_present(seq, start_codon_position):
     '''Check whether premature stop codon is present in an input DNA sequence of
-    gene. Also check if the expected stop codon is missing. Will call stop codon
-    as present if it's within the last four codons (and stop codons within that
-    range are not considered premature). If there are ambiguous bases in a codon
+    gene. Also check if the expected stop codon at the end is missing.
+    If there are ambiguous bases in a codon
     then premature stop codons must be matched by all possible ambiguous codons,
     while the expected codons need only be matched by one. Also, takes in position
     of start codon, so that if the start codon is missing and/or a few codons in
@@ -82,7 +82,7 @@ def stop_codon_premature_present(seq, start_codon_position):
               file = sys.stderr)
 
     if not start_codon_position:
-        start_codon_position = 9
+        start_codon_position = 0
 
     premature_stop_codon_position = float('NaN')
     percent_truncated = float('NaN')
@@ -91,7 +91,7 @@ def stop_codon_premature_present(seq, start_codon_position):
 
     codon_positions = []
 
-    for i in range(0, len(seq), 3):
+    for i in range(start_codon_position, len(seq), 3):
 
         codon = seq[i:i + 3]
 
@@ -100,9 +100,6 @@ def stop_codon_premature_present(seq, start_codon_position):
 
         codon_positions.append(i)
 
-        if i <= start_codon_position:
-            continue
-
         if check_ambig_match_dict(codon, codon2aa, 'STOP',
                                   all_possible_match = True):
             stop_codon_calls.add(i)
@@ -110,33 +107,26 @@ def stop_codon_premature_present(seq, start_codon_position):
     
     # Re-check tail of gene while allowing for more ambiguous matches to stop
     # codon
-    last_four_codon_pos = codon_positions[-4:]
+    expected_stop_pos = codon_positions[-1]
 
     final_stop_present = False
-    final_stop_position = float('NaN')
 
-    for j in last_four_codon_pos:
-        codon = seq[j:j + 3]
+    obs_final_codon = seq[expected_stop_pos:expected_stop_pos + 3]
 
-        if len(codon) != 3:
-            continue
+    if len(obs_final_codon) == 3 and check_ambig_match_dict(obs_final_codon, codon2aa, 'STOP', all_possible_match = False):
 
-        if check_ambig_match_dict(codon, codon2aa, 'STOP',
-                                  all_possible_match = False):
+        final_stop_present = True
+        stop_codon_calls.remove(expected_stop_pos)
 
-            if not final_stop_present:
-                final_stop_present = True
-                final_stop_position = j
-
-            stop_codon_calls.remove(j)
-
-    expected_stop_pos = codon_positions[-1]
 
     if len(stop_codon_calls) > 0:
         premature_stop_codon_position = min(list(stop_codon_calls))
 
         # Twos in numerator just added for clarity - the twos in just general are included as the positions are from the *start* of the codon.
-        percent_truncated = ((expected_stop_pos + 2 - premature_stop_codon_position - 2) / (expected_stop_pos + 2)) * 100
+        expected_length = expected_stop_pos + 2 - start_codon_position
+        observed_length = premature_stop_codon_position - 2 - start_codon_position
+
+        percent_truncated = ((expected_length - observed_length) / expected_length) * 100
 
     return((final_stop_present, premature_stop_codon_position, expected_stop_pos, percent_truncated))
 
