@@ -50,7 +50,9 @@ def main():
         log_file = strainfinder_expected_path + '/' + 'log.' + args.gene_name + '.' + str(i) + '.txt'
         otu_file = strainfinder_expected_path + '/' + 'otu_table.' + args.gene_name + '.' + str(i) + '.txt'
 
-        if not os.path.exists(em_file) or not os.path.exists(log_file) or not os.path.exists(otu_file):
+        # Sometimes logfiles are the only files missing for some reason.
+        # So can just not check for them as the other output files seem correct despite that so no need to re-run.
+        if not os.path.exists(em_file) or not os.path.exists(otu_file):
             print(args.gene_name + '\t' + 'only_partial_strainfinder_output')
             sys.exit()
 
