@@ -1,15 +1,17 @@
 rm(list = ls(all.names = TRUE))
 
+library(xlsx)
+
 # Parse accessions for all Apis mellifera microbiota genomes (for specified species).
 # Take the union of genomes available through IMG / NCBI (but mark both ids - NA if missing).
 # Check against the Ellegaard 2020 genome database and figure out if any other species / genomes should be added that didn't come up in my search.
 
 # Read in Ellegaard 2020 Data S1.
 
-sheet_info <- read.table("/data1/gdouglas/projects/honey_bee/adding_new_microbiota_genomes/Ellegaard_2020_Data_S1/sheet_descript.txt", stringsAsFactors = FALSE, sep = "\t")$V1
+sheet_info <- read.table("/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/Ellegaard_2020_Data_S1/sheet_descript.txt", stringsAsFactors = FALSE, sep = "\t")$V1
 Ellegaard_db <- list()
 for (i in 1:length(sheet_info)) {
-  Ellegaard_db[[sheet_info[[i]]]] <- data.frame(read.xlsx("/data1/gdouglas/projects/honey_bee/adding_new_microbiota_genomes/Ellegaard_2020_Data_S1/1-s2.0-S0960982220305868-mmc2.xlsx",
+  Ellegaard_db[[sheet_info[[i]]]] <- data.frame(read.xlsx("/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/Ellegaard_2020_Data_S1/1-s2.0-S0960982220305868-mmc2.xlsx",
                                                           sheetIndex = i), stringsAsFactors = FALE)
 }
 
@@ -569,6 +571,22 @@ write.table(x = Lactobacillus_melliventris_out,
             file = "/data1/gdouglas/projects/honey_bee/adding_new_microbiota_genomes/accessions_to_process/Lactobacillus_melliventris.tsv",
             sep = "\t", col.names = TRUE, row.names = FALSE, quote = FALSE)
 
+
+# Lactobacillus sp.
+
+Lactobacillus_sp_NCBI <- read.table("/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/2021_12_16_honey_bee_microbiota_info/NCBI_Lactobacillus_sp.csv",
+                                              sep = ",", header = TRUE, stringsAsFactors = FALSE, comment.char = "")
+
+Lactobacillus_sp_NCBI_Amellifera <- Lactobacillus_sp_NCBI[which(Lactobacillus_sp_NCBI$Host == "Apis mellifera"), ]
+
+Lactobacillus_sp_out <- Lactobacillus_sp_NCBI_Amellifera[, c("Assembly", "RefSeq.FTP")]
+
+colnames(Lactobacillus_sp_out) <- c("accession", "NCBI_download")
+Lactobacillus_sp_out$database <- "NCBI"
+
+write.table(x = Lactobacillus_sp_out,
+            file = "/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/accessions_to_process/Lactobacillus_sp.tsv",
+            sep = "\t", col.names = TRUE, row.names = FALSE, quote = FALSE)
 
 # Parasaccharibacter_apium
 

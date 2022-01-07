@@ -44,7 +44,7 @@ phylotype_orig_ids <- list()
 orig_ids <- c()
 
 for (p in phylotypes) {
-  phylotype_id_filename <- paste0("/data1/gdouglas/projects/honey_bee/adding_new_microbiota_genomes/2021_05_20_Carrie_genome_accessions_renamed/", p, "_ids.txt")
+  phylotype_id_filename <- paste0("/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/2021_05_20_Carrie_genome_accessions_renamed/", p, "_ids.txt")
   phylotype_orig_ids[[p]] <- read.table(phylotype_id_filename, stringsAsFactors = FALSE)$V1
   phylotype_orig_ids[[p]] <- gsub("^GCA_", "GCA-", phylotype_orig_ids[[p]])
   phylotype_orig_ids[[p]] <- gsub("^GCF_", "GCF-", phylotype_orig_ids[[p]])
@@ -60,8 +60,8 @@ for (p in phylotypes) {
 
 # Read in all accessions that want to analyze.
 
-species_names <- gsub(".tsv$", "", list.files("/data1/gdouglas/projects/honey_bee/adding_new_microbiota_genomes/accessions_to_process/"))
-accession_files <- list.files("/data1/gdouglas/projects/honey_bee/adding_new_microbiota_genomes/accessions_to_process", full.names = TRUE)
+species_names <- gsub(".tsv$", "", list.files("/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/accessions_to_process/"))
+accession_files <- list.files("/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/accessions_to_process", full.names = TRUE)
 
 compare_log <- data.frame(matrix(NA, nrow = length(species_names), ncol = 2))
 rownames(compare_log) <- species_names
@@ -94,12 +94,12 @@ for (i in 1:length(accession_files)) {
   md5_download_cmds <- c(md5_download_cmds, generate_rsync_download_cmds_md5sum(info_tab_to_download$NCBI_download, species_name))
 }
 
-write.table(x = mkdir_cmds, file = "/data1/gdouglas/projects/honey_bee/adding_new_microbiota_genomes/new_genome_downloads/mkdir_cmds.sh",
+write.table(x = mkdir_cmds, file = "/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/new_genome_downloads/mkdir_cmds.sh",
             sep = "", col.names = FALSE, row.names = FALSE, quote = FALSE)
 
-write.table(x = download_cmds, file = "/data1/gdouglas/projects/honey_bee/adding_new_microbiota_genomes/new_genome_downloads/download_cmds.sh",
+write.table(x = download_cmds, file = "/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/new_genome_downloads/download_cmds.sh",
             sep = "", col.names = FALSE, row.names = FALSE, quote = FALSE)
-write.table(x = md5_download_cmds, file = "/data1/gdouglas/projects/honey_bee/adding_new_microbiota_genomes/new_genome_downloads/md5_download_cmds.sh",
+write.table(x = md5_download_cmds, file = "/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/new_genome_downloads/md5_download_cmds.sh",
             sep = "", col.names = FALSE, row.names = FALSE, quote = FALSE)
 
 
@@ -135,7 +135,7 @@ bifido[which(! bifido %in% all_new_accessions)]
 
 
 
-firm4 <- read.table("/data1/gdouglas/projects/honey_bee/adding_new_microbiota_genomes/2021_05_20_Carrie_genome_accessions/firm4_strains_host.txt",
+firm4 <- read.table("/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/2021_05_20_Carrie_genome_accessions/firm4_strains_host.txt",
                      header = FALSE, sep = "\t", stringsAsFactors = FALSE)$V1
 
 firm4 <- firm4[grep("mellifera", firm4)]
@@ -149,7 +149,7 @@ firm4[which(! firm4 %in% all_new_accessions)]
 # All unusual Lactobacillus species that didn't intersect with the species I parsed, but I guess are in Firm4
 
 
-firm5 <- read.table("/data1/gdouglas/projects/honey_bee/adding_new_microbiota_genomes/2021_05_20_Carrie_genome_accessions/lacto5_strains_host.txt",
+firm5 <- read.table("/data1/gdouglas/projects/honey_bee/ref_genomes/adding_new_microbiota_genomes/2021_05_20_Carrie_genome_accessions/lacto5_strains_host.txt",
                     header = FALSE, sep = "\t", stringsAsFactors = FALSE)$V1
 
 firm5 <- firm5[grep("mellifera", firm5)]
