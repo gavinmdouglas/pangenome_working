@@ -1,8 +1,42 @@
-### Call core genes for each phylotype and make a single table with all genes mapped to.
+### For species with < 10 genomes I identified core genes based on marker gene sets associated with
+### the closest rank associated with the lineage in checkm
 
 rm(list = ls(all.names = TRUE))
 
-core_genes <- list()
+species_subset <- c("Apilactobacillus_apinorum", "Apilactobacillus_kunkeei", "Bartonella_apis", 
+                    "Bifidobacterium_coryneforme_indicum", "Bombella_sp", "Bombilactobacillus_mellifer",
+                    "Frischella_perrara", "Gilliamella_sp", "Lactobacillus_apis",
+                    "Lactobacillus_helsingborgensis", "Lactobacillus_kimbladii", "Lactobacillus_kullabergensis",
+                    "Lactobacillus_melliventris", "Serratia_marcescens")
+
+for (sp in species) {
+
+  if (sp == "Apilactobacillus_apinorum") {
+    custom_core_needed <- c(custom_core_needed, sp)
+    next
+  }
+   
+  sp_panaroo_outfile <- paste("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/highqual_genomes_panaroo/", sp, "/gene_presence_absence_roary.csv.gz", sep = "")
+  
+  sp_panaroo <- read.table(sp_panaroo_outfile, header = TRUE, sep = ",", comment.char = "", quote = "")
+  
+  rownames(sp_panaroo) <- paste(sp, sp_panaroo$Gene, sep = "_")
+  
+  sp_num_genomes <- ncol(sp_panaroo) - 15 + 1
+  
+  if (sp_num_genomes < 10) {
+    custom_core_needed <- c(custom_core_needed, sp)
+    next
+  }
+  
+  core_genes[[sp]] <- rownames(sp_panaroo)[which(sp_panaroo$No..isolates == sp_num_genomes)]
+  
+  print(sp)
+  print(length(which(sp_panaroo$No..isolates == sp_num_genomes)))
+  print("--------")
+  
+}
+
 
 Bifidobacterium_panaroo <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Bifidobacterium/gene_presence_absence_roary.csv",
                                       header = TRUE, sep = ",", comment.char = "", quote = "")
