@@ -5,8 +5,8 @@ rm(list = ls(all.names = TRUE))
 library(stringr)
 
 # Read in input
-KO_output <- read.table(file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/KEGG_output/all_microbiota_KO_calls.tsv.gz",
-                            header = TRUE, sep = "\t", stringsAsFactors = FALSE, quote = "", comment.char = "", row.names = 1)
+eggNOG_output <- read.table(file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/eggNOG_output/all_microbiota_eggNOG.tsv",
+                            header = TRUE, sep = "\t", row.names = 1, stringsAsFactors = FALSE, quote = "", comment.char = "")
 
 panaroo_out <- list()
 
@@ -32,13 +32,13 @@ rownames(panaroo_out[["Apilactobacillus_apinorum"]]) <- paste("Apilactobacillus_
 panaroo_out[["Apilactobacillus_apinorum"]]$GCA_001281175.1 <- Apilactobacillus_apinorum_ids
 
 
-KO_calls <- list()
+eggNOG_calls <- list()
 for (sp in species) {
   
   print(sp)
   
   for (ortholog in rownames(panaroo_out[[sp]])) {
-    ortholog_KO_calls <- c()
+    ortholog_eggNOG_calls <- c()
     num_CDS <- 0
     for (calls in panaroo_out[[sp]][ortholog, 4:ncol(panaroo_out[[sp]])]) {
          for (call_id in str_split(calls, ";")[[1]]) {
@@ -49,40 +49,40 @@ for (sp in species) {
             call_id <- gsub("_len$", "", call_id)
             call_id <- gsub("_stop$", "", call_id)
             
-            if (call_id %in% rownames(KO_output)) {
-              ortholog_KO_calls <- c(ortholog_KO_calls, str_split(KO_output[call_id, "KO"], ",")[[1]])
+            if (call_id %in% rownames(eggNOG_output)) {
+              ortholog_eggNOG_calls <- c(ortholog_eggNOG_calls, str_split(eggNOG_output[call_id, "broadest_OG"], ",")[[1]])
             }
        }
     }
     
-    if (length(ortholog_KO_calls) > 0) {
-      ortholog_KO_calls_prop <- table(ortholog_KO_calls) / num_CDS
+    if (length(ortholog_eggNOG_calls) > 0) {
+      ortholog_eggNOG_calls_prop <- table(ortholog_eggNOG_calls) / num_CDS
       
-      if (length(which(ortholog_KO_calls_prop >= 0.9)) > 0) {
-        KO_calls[[ortholog]] <- paste(sort(names(ortholog_KO_calls_prop[which(ortholog_KO_calls_prop >= 0.9)])), collapse = ",")
+      if (length(which(ortholog_eggNOG_calls_prop >= 0.9)) > 0) {
+        eggNOG_calls[[ortholog]] <- paste(sort(names(ortholog_eggNOG_calls_prop[which(ortholog_eggNOG_calls_prop >= 0.9)])), collapse = ",")
       }
     }
   }
 }
 
-KO_calls_clean <- do.call(c, KO_calls)
+eggNOG_calls_clean <- do.call(c, eggNOG_calls)
 
-KO_calls_out <- data.frame(gene=names(KO_calls_clean), KO=KO_calls_clean)
+eggNOG_calls_out <- data.frame(gene=names(eggNOG_calls_clean), eggNOG=eggNOG_calls_clean)
 
-write.table(x = KO_calls_out,
-            file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/KEGG_output/all_microbiota_KO_by_ortholog.tsv",
+write.table(x = eggNOG_calls_out,
+            file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/eggNOG_output/all_microbiota_eggNOG_by_ortholog.tsv",
             col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
 
 
-KO_call_tally_tab <- data.frame(matrix(NA, nrow = length(species), ncol = 2))
-colnames(KO_call_tally_tab) <- c("count", "percent")
-rownames(KO_call_tally_tab) <- species
+eggNOG_call_tally_tab <- data.frame(matrix(NA, nrow = length(species), ncol = 2))
+colnames(eggNOG_call_tally_tab) <- c("count", "percent")
+rownames(eggNOG_call_tally_tab) <- species
 
-for (sp in rownames(KO_call_tally_tab)) {
-  KO_call_tally_tab[sp, ] <- c(length(grep(sp, KO_calls_out$gene)),
-                                        (length(grep(sp, KO_calls_out$gene)) / nrow(panaroo_out[[sp]])) * 100)
+for (sp in rownames(eggNOG_call_tally_tab)) {
+  eggNOG_call_tally_tab[sp, ] <- c(length(grep(sp, eggNOG_calls_out$gene)),
+                                        (length(grep(sp, eggNOG_calls_out$gene)) / nrow(panaroo_out[[sp]])) * 100)
 }
 
-write.table(x = KO_call_tally_tab,
-            file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/KEGG_output/all_microbiota_KO_by_ortholog_species_tallies.tsv",
+write.table(x = eggNOG_call_tally_tab,
+            file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/eggNOG_output/all_microbiota_eggNOG_by_ortholog_species_tallies.tsv",
             col.names = NA, row.names = TRUE, quote = FALSE, sep = "\t")
