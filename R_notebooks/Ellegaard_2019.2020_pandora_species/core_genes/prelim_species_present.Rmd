@@ -1,0 +1,188 @@
+---
+title: "Identify which species are present based on initial pandora mapping"
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(reshape2)
+library(kableExtra)
+library(knitr)
+library(ComplexHeatmap)
+```
+
+Parse first-pass pandora output that is based on all species to figure out which species aren't present at all. These species should be excluded when pandora is rerun to lessen the burden of unnecessary competitive mapping. Also, if there are clear clusters of species that don't overlap across the same samples then perhaps these should be mapped separately as well for the same reason.
+
+Note that species presence was determined here on the extremely conservative (from the perspective of being confident that species do not intersect) of at least 10 core genes being present.
+
+```{r read_pandora}
+pandora_output <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_out_illumina_all_species/pandora_multisample.matrix",
+                             header = TRUE, sep = "\t", row.names = 1)
+```
+
+```{r initialize_species_presence_tab}
+species <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/mapfiles/species.txt", stringsAsFactors = FALSE)$V1
+
+species_presence <- data.frame(matrix(0, nrow = length(species), ncol = ncol(pandora_output)))
+colnames(species_presence) <- colnames(pandora_output)
+rownames(species_presence) <- species
+```
+
+# Panaroo-only potential core genes
+
+## Table summary
+
+```{r panaroo_only_potential_core_presence_tab}
+panaroo_only_potential_core <- readRDS("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/core_genes/draft_core_genes/panaroo_only_potential_core.rds")
+
+panaroo_only_potential_core_present <- list()
+
+panaroo_only_any_present <- c()
+
+for (sp in names(panaroo_only_potential_core)) {
+  panaroo_only_potential_core_present[[sp]] <- panaroo_only_potential_core[[sp]][which(panaroo_only_potential_core[[sp]] %in% rownames(pandora_output))]
+  panaroo_only_any_present <- c(panaroo_only_any_present, length(grep(sp, rownames(pandora_output))))
+  
+  samples_i_with_sp <- which(colSums(pandora_output[panaroo_only_potential_core_present[[sp]], ]) >= 10)
+  
+  if (length(samples_i_with_sp) > 0) {
+    species_presence[sp, samples_i_with_sp] <- 1
+  }
+  
+  
+}
+
+panaroo_only_potential_core_presence <- data.frame(total_core = sapply(panaroo_only_potential_core, length),
+                                                   present_core = sapply(panaroo_only_potential_core_present, length),
+                                                   present_any = panaroo_only_any_present)
+
+panaroo_only_potential_core_presence$present_core_percent <- (panaroo_only_potential_core_presence$present_core / panaroo_only_potential_core_presence$total_core) * 100
+                                                   
+rownames(panaroo_only_potential_core_presence) <- names(panaroo_only_potential_core)
+
+kable(panaroo_only_potential_core_presence) %>%
+  kable_styling(full_width = FALSE)
+  
+```
+
+## Heatmaps {.tabset}
+
+```{r panaroo_only_potential_core_heatmaps, results='asis', echo=FALSE}
+
+for (sp in names(panaroo_only_potential_core)) {
+  
+   cat("###", sp, " \n\n")
+  
+  print(Heatmap(as.matrix(pandora_output[panaroo_only_potential_core_present[[sp]], ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+          clustering_distance_rows = "binary",
+          clustering_distance_columns = "binary"))
+  
+  cat("\n\n")
+}
+```
+
+
+
+# CheckM and panaroo-passed potential core genes
+
+## Table summary
+
+```{r checkm_panaroo_potential_core_presence_tab}
+checkm_panaroo_potential_core <- readRDS("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/core_genes/draft_core_genes/checkm_panaroo_passed_potential_core.rds")
+
+checkm_panaroo_potential_core_present <- list()
+
+checkm_panaroo_potential_core_present_prop <- c()
+checkm_panaroo_any_present <- c()
+
+for (sp in names(checkm_panaroo_potential_core)) {
+  checkm_panaroo_potential_core_present[[sp]] <- checkm_panaroo_potential_core[[sp]][which(checkm_panaroo_potential_core[[sp]] %in% rownames(pandora_output))]
+  checkm_panaroo_any_present <- c(checkm_panaroo_any_present, length(grep(sp, rownames(pandora_output))))
+  
+  samples_i_with_sp <- which(colSums(pandora_output[checkm_panaroo_potential_core_present[[sp]], ]) >= 10)
+  
+  if (length(samples_i_with_sp) > 0) {
+    species_presence[sp, samples_i_with_sp] <- 1
+  }
+}
+
+checkm_panaroo_potential_core_presence <- data.frame(total_core = sapply(checkm_panaroo_potential_core, length),
+                                                   present_core = sapply(checkm_panaroo_potential_core_present, length),
+                                                   present_any = checkm_panaroo_any_present)
+
+checkm_panaroo_potential_core_presence$present_core_percent <- (checkm_panaroo_potential_core_presence$present_core / checkm_panaroo_potential_core_presence$total_core) * 100
+                                           
+rownames(checkm_panaroo_potential_core_presence) <- names(checkm_panaroo_potential_core)
+
+kable(checkm_panaroo_potential_core_presence) %>%
+  kable_styling(full_width = FALSE)
+  
+```
+
+## Heatmaps {.tabset}
+
+```{r checkm_panaroo_potential_core_heatmaps, results='asis', echo=FALSE}
+
+for (sp in names(checkm_panaroo_potential_core)) {
+  
+   cat("###", sp, " \n\n")
+  
+  print(Heatmap(as.matrix(pandora_output[checkm_panaroo_potential_core_present[[sp]], ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+          clustering_distance_rows = "binary",
+         clustering_distance_columns = "binary"))
+  
+  cat("\n\n")
+}
+```
+
+# Overall (very rough) species presence heatmap
+
+```{r rough_species_presence_heatmap, fig.height=10, fig.width=10}
+Heatmap(as.matrix(species_presence),
+          show_row_dend = TRUE,
+          show_column_dend = TRUE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+ 
+# Very rough counts of samples where species is present
+ 
+ ```{r rough_species_prev}
+ sort(rowSums(species_presence))
+ ```
+ 
+# Conclusions
+
+Based on the above results, will re-run pandora after excluding genes from these six species:
+
+* Apilactobacillus_apinorum
+* Apilactobacillus_kunkeei
+* Bombella_apis
+* Bombella_sp
+* Gilliamella_sp
+* Serratia_marcescens
+
+
+Also, for the remaining species, run pandora with and without these rare species (conservatively in < 10 samples) included:
+
+* Commensalibacter_sp
+* Bombilactobacillus_mellifer
+* Frischella_perrara

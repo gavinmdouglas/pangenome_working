@@ -1,0 +1,1411 @@
+---
+title: "Identify final sets of core genes to use"
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(reshape2)
+library(kableExtra)
+library(knitr)
+library(ComplexHeatmap)
+```
+
+```{r read_pandora}
+
+pandora_output_all_species <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_out_illumina_all_species/pandora_multisample.matrix", header = TRUE, sep = "\t", row.names = 1)
+
+pandora_output_all_present <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_out_illumina_all_present/pandora_multisample.matrix", header = TRUE, sep = "\t", row.names = 1)
+
+pandora_output_all_common <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_out_illumina_all_common/pandora_multisample.matrix", header = TRUE, sep = "\t", row.names = 1)
+```
+
+# MGS gene presence/absence
+
+For species with at least 10 genomes, defined core genes just based on panaroo annotations. Otherwise, used checkm to determine lineage marker genes and then confirmed that these genese were present in all genomes based on panaroo. Note that species previously determined to be missing were just ignored.
+
+Compared output based on three pandora-mapping approaches: all species, only species determined to be present, and only common species
+
+It turns out that the results didn't vary much between these approaches.
+
+Specifically very few cells differed:
+```
+> sum(pandora_output_all_present[all_intersect, ] != pandora_output_all_species[all_intersect, ])
+[1] 347
+> sum(pandora_output_all_common[all_intersect, ] != pandora_output_all_species[all_intersect, ])
+[1] 648
+> sum(pandora_output_all_common[all_intersect, ] != pandora_output_all_present[all_intersect, ])
+[1] 405
+```
+
+**Decided to just proceed with the "all_present" data as this seems like it should be the most fair of the three approaches.**
+
+```{r potential_core_prep}
+panaroo_only_potential_core <- readRDS("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/core_genes/panaroo_only_potential_core.rds")
+
+checkm_panaroo_passed_potential_core <- readRDS("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/core_genes/checkm_panaroo_passed_potential_core.rds")
+
+potential_core <- c(panaroo_only_potential_core, checkm_panaroo_passed_potential_core)
+
+species_present <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/mapfiles/species_present.txt",
+                              stringsAsFactors = FALSE)$V1
+
+potential_core_all_species_present <- list()
+potential_core_all_present_present <- list()
+potential_core_all_common_present <- list()
+
+for (sp in species_present) {
+  potential_core_all_species_present[[sp]] <- potential_core[[sp]][which(potential_core[[sp]] %in% rownames(pandora_output_all_species))]
+  
+  potential_core_all_present_present[[sp]] <- potential_core[[sp]][which(potential_core[[sp]] %in% rownames(pandora_output_all_present))]
+    
+  potential_core_all_common_present[[sp]] <- potential_core[[sp]][which(potential_core[[sp]] %in% rownames(pandora_output_all_common))]
+}
+```
+
+## No. species core genes vs all species genes - all_species {.tabset}
+
+```{r potential_core_vs_total_scatterplots_all_species, results='asis', echo=FALSE}
+for (sp in species_present) {
+   cat("###", sp, " \n\n")
+  
+  num_Snodgrassella_alvi_potential_core_genes_per_sample <- colSums(pandora_output_all_species[potential_core_all_species_present[[sp]], ])
+  num_Snodgrassella_alvi_genes_per_sample <- colSums(pandora_output_all_species[grep(sp, rownames(pandora_output_all_species)), ])
+  
+  plot(num_Snodgrassella_alvi_genes_per_sample, num_Snodgrassella_alvi_potential_core_genes_per_sample,
+       xlab = "Total genes present", ylab = "Potential core genes present", main = sp)
+  
+  cat("\n\n")
+}
+```
+
+## No. species core genes vs all species genes - all_present {.tabset}
+
+```{r potential_core_vs_total_scatterplots_all_present, results='asis', echo=FALSE}
+for (sp in species_present) {
+   cat("###", sp, " \n\n")
+  
+  num_Snodgrassella_alvi_potential_core_genes_per_sample <- colSums(pandora_output_all_present[potential_core_all_present_present[[sp]], ])
+  num_Snodgrassella_alvi_genes_per_sample <- colSums(pandora_output_all_present[grep(sp, rownames(pandora_output_all_present)), ])
+  
+  plot(num_Snodgrassella_alvi_genes_per_sample, num_Snodgrassella_alvi_potential_core_genes_per_sample,
+       xlab = "Total genes present", ylab = "Potential core genes present", main = sp)
+  
+  cat("\n\n")
+}
+```
+
+## No. species core genes vs all species genes - all_common {.tabset}
+
+```{r potential_core_vs_total_scatterplots_all_common, results='asis', echo=FALSE}
+for (sp in species_present) {
+   cat("###", sp, " \n\n")
+  
+  num_Snodgrassella_alvi_potential_core_genes_per_sample <- colSums(pandora_output_all_common[potential_core_all_common_present[[sp]], ])
+  num_Snodgrassella_alvi_genes_per_sample <- colSums(pandora_output_all_common[grep(sp, rownames(pandora_output_all_common)), ])
+  
+  plot(num_Snodgrassella_alvi_genes_per_sample, num_Snodgrassella_alvi_potential_core_genes_per_sample,
+       xlab = "Total genes present", ylab = "Potential core genes present", main = sp)
+  
+  cat("\n\n")
+}
+```
+
+## Determine species presence/absence
+
+Called species as present in samples if either 50 core genes were called as present or at least 10% were present (whichever is lower).
+
+```{r call_species_present, fig.width=15, fig.height=10}
+
+species_presence <- data.frame(matrix(0, nrow = length(species_present), ncol = ncol(pandora_output_all_present)))
+colnames(species_presence) <- colnames(pandora_output_all_present)
+rownames(species_presence) <- species_present
+
+for (sp in species_present) {
+
+  Snodgrassella_alvi_core_genes_per_sample <- colSums(pandora_output_all_present[potential_core_all_present_present[[sp]], ])
+  
+  samples_i_with_sp <- which((Snodgrassella_alvi_core_genes_per_sample >= 50) | (Snodgrassella_alvi_core_genes_per_sample >= (0.1 * length(potential_core[[sp]]))))
+
+  if (length(samples_i_with_sp) > 0) {
+    species_presence[sp, samples_i_with_sp] <- 1
+  }
+}
+
+sample_metadata <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/mapfiles/Ellegaard.2019.2020_metadata.tsv",
+                              header = TRUE, sep = "\t", row.names = 1, stringsAsFactors = FALSE)
+
+species_presence <- species_presence[, rownames(sample_metadata)]
+
+column_annot <- HeatmapAnnotation(Country=sample_metadata$Country,
+                                  Apiary=sample_metadata$Apiary,
+                                  Year=sample_metadata$Year,
+                                  Age=factor(sample_metadata$Age, levels = c("Young", "Middle-aged", "Old")))
+
+Heatmap(as.matrix(species_presence),
+          show_row_dend = TRUE,
+          show_column_dend = TRUE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary",
+        top_annotation=column_annot)
+
+saveRDS(object = species_presence,
+        file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/core_genes/species_presence_50core_or_10percent.rds")
+```
+
+
+
+# Determine core genes to use for StrainFinder {.tabset}
+
+The above approach is reasonable for identifying whether a species is present at all, but for distinguishing strain it's necessary to compare variation in the same genes across different samples.
+
+```{r StrainFinder_core_summary_initial}
+
+# List to hold genes and samples to use with StrainFinder.
+StrainFinder_core_gene_info <- list()
+
+
+# Summary table to keep track of how many genes / samples are being excluded for use with StrainFinder (SF).
+StrainFinder_core_gene_summary <- data.frame(matrix(nrow = length(species_present), ncol = 6))
+rownames(StrainFinder_core_gene_summary) <- species_present
+colnames(StrainFinder_core_gene_summary) <- c("total_core", "present_core", "core_gene_cutoff", "SF_core", "present_samples", "SF_samples")
+```
+
+**This was an interactive approach as different cut-offs were needed for each species to retain as many genes / species as possible.**
+
+
+
+
+
+## Bartonella_apis {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Bartonella_apis_overall_prev}
+
+samples_w_Bartonella_apis <- colnames(species_presence)[which(species_presence["Bartonella_apis", ] == 1)]
+
+Bartonella_apis_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Bartonella_apis"]], samples_w_Bartonella_apis]
+```
+
+#### Num genes per sample
+```{r Bartonella_apis_overall_prev_num_genes}
+hist(colSums(Bartonella_apis_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Bartonella_apis_overall_prev_prop_samples}
+hist(rowSums(Bartonella_apis_pandora_subset) / ncol(Bartonella_apis_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Bartonella_apis_overall_prev_heatmap}
+Heatmap(as.matrix(Bartonella_apis_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Bartonella_apis_no_rare_prev}
+Bartonella_apis_rare_sample_cutoff <- 250
+Bartonella_apis_pandora_subset_norare <- Bartonella_apis_pandora_subset[, -which(colSums(Bartonella_apis_pandora_subset) < Bartonella_apis_rare_sample_cutoff)]
+
+Bartonella_apis_pandora_subset_norare_ubiq <- rownames(Bartonella_apis_pandora_subset_norare)[which(rowSums(Bartonella_apis_pandora_subset_norare) == ncol(Bartonella_apis_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Bartonella_apis"]] <- list(genes = Bartonella_apis_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Bartonella_apis_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Bartonella_apis", ] <- c(length(potential_core[["Bartonella_apis"]]),
+                                                            length(potential_core_all_present_present[["Bartonella_apis"]]),
+                                                            Bartonella_apis_rare_sample_cutoff,
+                                                            length(Bartonella_apis_pandora_subset_norare_ubiq),
+                                                            ncol(Bartonella_apis_pandora_subset),
+                                                            ncol(Bartonella_apis_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Bartonella_apis_rare_sample_cutoff`.
+
+Resulted in `r length(Bartonella_apis_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Bartonella_apis_no_rare_prev_num_genes}
+hist(colSums(Bartonella_apis_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Bartonella_apis_no_rare_prev_num_samples}
+hist(rowSums(Bartonella_apis_pandora_subset_norare) / ncol(Bartonella_apis_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Bartonella_apis_no_rare_prev_heatmap}
+Heatmap(as.matrix(Bartonella_apis_pandora_subset_norare[Bartonella_apis_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+## Bifidobacterium_asteroides {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Bifidobacterium_asteroides_overall_prev}
+
+samples_w_Bifidobacterium_asteroides <- colnames(species_presence)[which(species_presence["Bifidobacterium_asteroides", ] == 1)]
+
+Bifidobacterium_asteroides_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Bifidobacterium_asteroides"]], samples_w_Bifidobacterium_asteroides]
+```
+
+#### Num genes per sample
+```{r Bifidobacterium_asteroides_overall_prev_num_genes}
+hist(colSums(Bifidobacterium_asteroides_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Bifidobacterium_asteroides_overall_prev_prop_samples}
+hist(rowSums(Bifidobacterium_asteroides_pandora_subset) / ncol(Bifidobacterium_asteroides_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Bifidobacterium_asteroides_overall_prev_heatmap}
+Heatmap(as.matrix(Bifidobacterium_asteroides_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Bifidobacterium_asteroides_no_rare_prev}
+Bifidobacterium_asteroides_rare_sample_cutoff <- 600
+Bifidobacterium_asteroides_pandora_subset_norare <- Bifidobacterium_asteroides_pandora_subset[, -which(colSums(Bifidobacterium_asteroides_pandora_subset) < Bifidobacterium_asteroides_rare_sample_cutoff)]
+
+Bifidobacterium_asteroides_pandora_subset_norare_ubiq <- rownames(Bifidobacterium_asteroides_pandora_subset_norare)[which(rowSums(Bifidobacterium_asteroides_pandora_subset_norare) == ncol(Bifidobacterium_asteroides_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Bifidobacterium_asteroides"]] <- list(genes = Bifidobacterium_asteroides_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Bifidobacterium_asteroides_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Bifidobacterium_asteroides", ] <- c(length(potential_core[["Bifidobacterium_asteroides"]]),
+                                                            length(potential_core_all_present_present[["Bifidobacterium_asteroides"]]),
+                                                            Bifidobacterium_asteroides_rare_sample_cutoff,
+                                                            length(Bifidobacterium_asteroides_pandora_subset_norare_ubiq),
+                                                            ncol(Bifidobacterium_asteroides_pandora_subset),
+                                                            ncol(Bifidobacterium_asteroides_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Bifidobacterium_asteroides_rare_sample_cutoff`.
+
+Resulted in `r length(Bifidobacterium_asteroides_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Bifidobacterium_asteroides_no_rare_prev_num_genes}
+hist(colSums(Bifidobacterium_asteroides_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Bifidobacterium_asteroides_no_rare_prev_num_samples}
+hist(rowSums(Bifidobacterium_asteroides_pandora_subset_norare) / ncol(Bifidobacterium_asteroides_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Bifidobacterium_asteroides_no_rare_prev_heatmap}
+Heatmap(as.matrix(Bifidobacterium_asteroides_pandora_subset_norare[Bifidobacterium_asteroides_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+
+## Bifidobacterium_coryneforme_indicum {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Bifidobacterium_coryneforme_indicum_overall_prev}
+
+samples_w_Bifidobacterium_coryneforme_indicum <- colnames(species_presence)[which(species_presence["Bifidobacterium_coryneforme_indicum", ] == 1)]
+
+Bifidobacterium_coryneforme_indicum_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Bifidobacterium_coryneforme_indicum"]], samples_w_Bifidobacterium_coryneforme_indicum]
+```
+
+#### Num genes per sample
+```{r Bifidobacterium_coryneforme_indicum_overall_prev_num_genes}
+hist(colSums(Bifidobacterium_coryneforme_indicum_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Bifidobacterium_coryneforme_indicum_overall_prev_prop_samples}
+hist(rowSums(Bifidobacterium_coryneforme_indicum_pandora_subset) / ncol(Bifidobacterium_coryneforme_indicum_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Bifidobacterium_coryneforme_indicum_overall_prev_heatmap}
+Heatmap(as.matrix(Bifidobacterium_coryneforme_indicum_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Bifidobacterium_coryneforme_indicum_no_rare_prev}
+Bifidobacterium_coryneforme_indicum_rare_sample_cutoff <- 250
+Bifidobacterium_coryneforme_indicum_pandora_subset_norare <- Bifidobacterium_coryneforme_indicum_pandora_subset[, -which(colSums(Bifidobacterium_coryneforme_indicum_pandora_subset) < Bifidobacterium_coryneforme_indicum_rare_sample_cutoff)]
+
+Bifidobacterium_coryneforme_indicum_pandora_subset_norare_ubiq <- rownames(Bifidobacterium_coryneforme_indicum_pandora_subset_norare)[which(rowSums(Bifidobacterium_coryneforme_indicum_pandora_subset_norare) == ncol(Bifidobacterium_coryneforme_indicum_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Bifidobacterium_coryneforme_indicum"]] <- list(genes = Bifidobacterium_coryneforme_indicum_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Bifidobacterium_coryneforme_indicum_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Bifidobacterium_coryneforme_indicum", ] <- c(length(potential_core[["Bifidobacterium_coryneforme_indicum"]]),
+                                                            length(potential_core_all_present_present[["Bifidobacterium_coryneforme_indicum"]]),
+                                                            Bifidobacterium_coryneforme_indicum_rare_sample_cutoff,
+                                                            length(Bifidobacterium_coryneforme_indicum_pandora_subset_norare_ubiq),
+                                                            ncol(Bifidobacterium_coryneforme_indicum_pandora_subset),
+                                                            ncol(Bifidobacterium_coryneforme_indicum_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Bifidobacterium_coryneforme_indicum_rare_sample_cutoff`.
+
+Resulted in `r length(Bifidobacterium_coryneforme_indicum_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Bifidobacterium_coryneforme_indicum_no_rare_prev_num_genes}
+hist(colSums(Bifidobacterium_coryneforme_indicum_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Bifidobacterium_coryneforme_indicum_no_rare_prev_num_samples}
+hist(rowSums(Bifidobacterium_coryneforme_indicum_pandora_subset_norare) / ncol(Bifidobacterium_coryneforme_indicum_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Bifidobacterium_coryneforme_indicum_no_rare_prev_heatmap}
+Heatmap(as.matrix(Bifidobacterium_coryneforme_indicum_pandora_subset_norare[Bifidobacterium_coryneforme_indicum_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+
+## Bombilactobacillus_mellifer {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Bombilactobacillus_mellifer_overall_prev}
+
+samples_w_Bombilactobacillus_mellifer <- colnames(species_presence)[which(species_presence["Bombilactobacillus_mellifer", ] == 1)]
+
+Bombilactobacillus_mellifer_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Bombilactobacillus_mellifer"]], samples_w_Bombilactobacillus_mellifer]
+```
+
+#### Num genes per sample
+```{r Bombilactobacillus_mellifer_overall_prev_num_genes}
+hist(colSums(Bombilactobacillus_mellifer_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Bombilactobacillus_mellifer_overall_prev_prop_samples}
+hist(rowSums(Bombilactobacillus_mellifer_pandora_subset) / ncol(Bombilactobacillus_mellifer_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Bombilactobacillus_mellifer_overall_prev_heatmap}
+Heatmap(as.matrix(Bombilactobacillus_mellifer_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Bombilactobacillus_mellifer_no_rare_prev}
+Bombilactobacillus_mellifer_rare_sample_cutoff <- NA
+Bombilactobacillus_mellifer_pandora_subset_norare <- Bombilactobacillus_mellifer_pandora_subset
+
+Bombilactobacillus_mellifer_pandora_subset_norare_ubiq <- rownames(Bombilactobacillus_mellifer_pandora_subset_norare)[which(rowSums(Bombilactobacillus_mellifer_pandora_subset_norare) == ncol(Bombilactobacillus_mellifer_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Bombilactobacillus_mellifer"]] <- list(genes = Bombilactobacillus_mellifer_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Bombilactobacillus_mellifer_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Bombilactobacillus_mellifer", ] <- c(length(potential_core[["Bombilactobacillus_mellifer"]]),
+                                                            length(potential_core_all_present_present[["Bombilactobacillus_mellifer"]]),
+                                                            Bombilactobacillus_mellifer_rare_sample_cutoff,
+                                                            length(Bombilactobacillus_mellifer_pandora_subset_norare_ubiq),
+                                                            ncol(Bombilactobacillus_mellifer_pandora_subset),
+                                                            ncol(Bombilactobacillus_mellifer_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Bombilactobacillus_mellifer_rare_sample_cutoff`.
+
+Resulted in `r length(Bombilactobacillus_mellifer_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Bombilactobacillus_mellifer_no_rare_prev_num_genes}
+hist(colSums(Bombilactobacillus_mellifer_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Bombilactobacillus_mellifer_no_rare_prev_num_samples}
+hist(rowSums(Bombilactobacillus_mellifer_pandora_subset_norare) / ncol(Bombilactobacillus_mellifer_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Bombilactobacillus_mellifer_no_rare_prev_heatmap}
+Heatmap(as.matrix(Bombilactobacillus_mellifer_pandora_subset_norare[Bombilactobacillus_mellifer_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+## Bombilactobacillus_mellis {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Bombilactobacillus_mellis_overall_prev}
+
+samples_w_Bombilactobacillus_mellis <- colnames(species_presence)[which(species_presence["Bombilactobacillus_mellis", ] == 1)]
+
+Bombilactobacillus_mellis_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Bombilactobacillus_mellis"]], samples_w_Bombilactobacillus_mellis]
+```
+
+#### Num genes per sample
+```{r Bombilactobacillus_mellis_overall_prev_num_genes}
+hist(colSums(Bombilactobacillus_mellis_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Bombilactobacillus_mellis_overall_prev_prop_samples}
+hist(rowSums(Bombilactobacillus_mellis_pandora_subset) / ncol(Bombilactobacillus_mellis_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Bombilactobacillus_mellis_overall_prev_heatmap}
+Heatmap(as.matrix(Bombilactobacillus_mellis_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Bombilactobacillus_mellis_no_rare_prev}
+Bombilactobacillus_mellis_rare_sample_cutoff <- 600
+Bombilactobacillus_mellis_pandora_subset_norare <- Bombilactobacillus_mellis_pandora_subset[, -which(colSums(Bombilactobacillus_mellis_pandora_subset) < Bombilactobacillus_mellis_rare_sample_cutoff)]
+
+Bombilactobacillus_mellis_pandora_subset_norare_ubiq <- rownames(Bombilactobacillus_mellis_pandora_subset_norare)[which(rowSums(Bombilactobacillus_mellis_pandora_subset_norare) == ncol(Bombilactobacillus_mellis_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Bombilactobacillus_mellis"]] <- list(genes = Bombilactobacillus_mellis_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Bombilactobacillus_mellis_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Bombilactobacillus_mellis", ] <- c(length(potential_core[["Bombilactobacillus_mellis"]]),
+                                                            length(potential_core_all_present_present[["Bombilactobacillus_mellis"]]),
+                                                            Bombilactobacillus_mellis_rare_sample_cutoff,
+                                                            length(Bombilactobacillus_mellis_pandora_subset_norare_ubiq),
+                                                            ncol(Bombilactobacillus_mellis_pandora_subset),
+                                                            ncol(Bombilactobacillus_mellis_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Bombilactobacillus_mellis_rare_sample_cutoff`.
+
+Resulted in `r length(Bombilactobacillus_mellis_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Bombilactobacillus_mellis_no_rare_prev_num_genes}
+hist(colSums(Bombilactobacillus_mellis_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Bombilactobacillus_mellis_no_rare_prev_num_samples}
+hist(rowSums(Bombilactobacillus_mellis_pandora_subset_norare) / ncol(Bombilactobacillus_mellis_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Bombilactobacillus_mellis_no_rare_prev_heatmap}
+Heatmap(as.matrix(Bombilactobacillus_mellis_pandora_subset_norare[Bombilactobacillus_mellis_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+## Commensalibacter_sp {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Commensalibacter_sp_overall_prev}
+
+samples_w_Commensalibacter_sp <- colnames(species_presence)[which(species_presence["Commensalibacter_sp", ] == 1)]
+
+Commensalibacter_sp_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Commensalibacter_sp"]], samples_w_Commensalibacter_sp]
+```
+
+#### Num genes per sample
+```{r Commensalibacter_sp_overall_prev_num_genes}
+hist(colSums(Commensalibacter_sp_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Commensalibacter_sp_overall_prev_prop_samples}
+hist(rowSums(Commensalibacter_sp_pandora_subset) / ncol(Commensalibacter_sp_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Commensalibacter_sp_overall_prev_heatmap}
+Heatmap(as.matrix(Commensalibacter_sp_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Commensalibacter_sp_no_rare_prev}
+Commensalibacter_sp_rare_sample_cutoff <- NA
+Commensalibacter_sp_pandora_subset_norare <- Commensalibacter_sp_pandora_subset
+
+Commensalibacter_sp_pandora_subset_norare_ubiq <- rownames(Commensalibacter_sp_pandora_subset_norare)[which(rowSums(Commensalibacter_sp_pandora_subset_norare) == ncol(Commensalibacter_sp_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Commensalibacter_sp"]] <- list(genes = Commensalibacter_sp_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Commensalibacter_sp_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Commensalibacter_sp", ] <- c(length(potential_core[["Commensalibacter_sp"]]),
+                                                            length(potential_core_all_present_present[["Commensalibacter_sp"]]),
+                                                            Commensalibacter_sp_rare_sample_cutoff,
+                                                            length(Commensalibacter_sp_pandora_subset_norare_ubiq),
+                                                            ncol(Commensalibacter_sp_pandora_subset),
+                                                            ncol(Commensalibacter_sp_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Commensalibacter_sp_rare_sample_cutoff`.
+
+Resulted in `r length(Commensalibacter_sp_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Commensalibacter_sp_no_rare_prev_num_genes}
+hist(colSums(Commensalibacter_sp_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Commensalibacter_sp_no_rare_prev_num_samples}
+hist(rowSums(Commensalibacter_sp_pandora_subset_norare) / ncol(Commensalibacter_sp_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Commensalibacter_sp_no_rare_prev_heatmap}
+Heatmap(as.matrix(Commensalibacter_sp_pandora_subset_norare[Commensalibacter_sp_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+
+## Frischella_perrara {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Frischella_perrara_overall_prev}
+
+samples_w_Frischella_perrara <- colnames(species_presence)[which(species_presence["Frischella_perrara", ] == 1)]
+
+Frischella_perrara_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Frischella_perrara"]], samples_w_Frischella_perrara]
+```
+
+#### Num genes per sample
+```{r Frischella_perrara_overall_prev_num_genes}
+hist(colSums(Frischella_perrara_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Frischella_perrara_overall_prev_prop_samples}
+hist(rowSums(Frischella_perrara_pandora_subset) / ncol(Frischella_perrara_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Frischella_perrara_overall_prev_heatmap}
+Heatmap(as.matrix(Frischella_perrara_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Frischella_perrara_no_rare_prev}
+Frischella_perrara_rare_sample_cutoff <- 50
+Frischella_perrara_pandora_subset_norare <- Frischella_perrara_pandora_subset[, -which(colSums(Frischella_perrara_pandora_subset) < Frischella_perrara_rare_sample_cutoff)]
+
+Frischella_perrara_pandora_subset_norare_ubiq <- rownames(Frischella_perrara_pandora_subset_norare)[which(rowSums(Frischella_perrara_pandora_subset_norare) == ncol(Frischella_perrara_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Frischella_perrara"]] <- list(genes = Frischella_perrara_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Frischella_perrara_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Frischella_perrara", ] <- c(length(potential_core[["Frischella_perrara"]]),
+                                                            length(potential_core_all_present_present[["Frischella_perrara"]]),
+                                                            Frischella_perrara_rare_sample_cutoff,
+                                                            length(Frischella_perrara_pandora_subset_norare_ubiq),
+                                                            ncol(Frischella_perrara_pandora_subset),
+                                                            ncol(Frischella_perrara_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Frischella_perrara_rare_sample_cutoff`.
+
+Resulted in `r length(Frischella_perrara_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Frischella_perrara_no_rare_prev_num_genes}
+hist(colSums(Frischella_perrara_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Frischella_perrara_no_rare_prev_num_samples}
+hist(rowSums(Frischella_perrara_pandora_subset_norare) / ncol(Frischella_perrara_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Frischella_perrara_no_rare_prev_heatmap}
+Heatmap(as.matrix(Frischella_perrara_pandora_subset_norare[Frischella_perrara_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+
+## Gilliamella_apicola {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Gilliamella_apicola_overall_prev}
+
+samples_w_Gilliamella_apicola <- colnames(species_presence)[which(species_presence["Gilliamella_apicola", ] == 1)]
+
+Gilliamella_apicola_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Gilliamella_apicola"]], samples_w_Gilliamella_apicola]
+```
+
+#### Num genes per sample
+```{r Gilliamella_apicola_overall_prev_num_genes}
+hist(colSums(Gilliamella_apicola_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Gilliamella_apicola_overall_prev_prop_samples}
+hist(rowSums(Gilliamella_apicola_pandora_subset) / ncol(Gilliamella_apicola_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Gilliamella_apicola_overall_prev_heatmap}
+Heatmap(as.matrix(Gilliamella_apicola_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Gilliamella_apicola_no_rare_prev}
+Gilliamella_apicola_rare_sample_cutoff <- 1000
+Gilliamella_apicola_pandora_subset_norare <- Gilliamella_apicola_pandora_subset[, -which(colSums(Gilliamella_apicola_pandora_subset) < Gilliamella_apicola_rare_sample_cutoff)]
+
+Gilliamella_apicola_pandora_subset_norare_ubiq <- rownames(Gilliamella_apicola_pandora_subset_norare)[which(rowSums(Gilliamella_apicola_pandora_subset_norare) == ncol(Gilliamella_apicola_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Gilliamella_apicola"]] <- list(genes = Gilliamella_apicola_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Gilliamella_apicola_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Gilliamella_apicola", ] <- c(length(potential_core[["Gilliamella_apicola"]]),
+                                                            length(potential_core_all_present_present[["Gilliamella_apicola"]]),
+                                                            Gilliamella_apicola_rare_sample_cutoff,
+                                                            length(Gilliamella_apicola_pandora_subset_norare_ubiq),
+                                                            ncol(Gilliamella_apicola_pandora_subset),
+                                                            ncol(Gilliamella_apicola_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Gilliamella_apicola_rare_sample_cutoff`.
+
+Resulted in `r length(Gilliamella_apicola_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Gilliamella_apicola_no_rare_prev_num_genes}
+hist(colSums(Gilliamella_apicola_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Gilliamella_apicola_no_rare_prev_num_samples}
+hist(rowSums(Gilliamella_apicola_pandora_subset_norare) / ncol(Gilliamella_apicola_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Gilliamella_apicola_no_rare_prev_heatmap}
+Heatmap(as.matrix(Gilliamella_apicola_pandora_subset_norare[Gilliamella_apicola_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+
+
+## Gilliamella_apis {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Gilliamella_apis_overall_prev}
+
+samples_w_Gilliamella_apis <- colnames(species_presence)[which(species_presence["Gilliamella_apis", ] == 1)]
+
+Gilliamella_apis_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Gilliamella_apis"]], samples_w_Gilliamella_apis]
+```
+
+#### Num genes per sample
+```{r Gilliamella_apis_overall_prev_num_genes}
+hist(colSums(Gilliamella_apis_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Gilliamella_apis_overall_prev_prop_samples}
+hist(rowSums(Gilliamella_apis_pandora_subset) / ncol(Gilliamella_apis_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Gilliamella_apis_overall_prev_heatmap}
+Heatmap(as.matrix(Gilliamella_apis_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Gilliamella_apis_no_rare_prev}
+Gilliamella_apis_rare_sample_cutoff <- 500
+Gilliamella_apis_pandora_subset_norare <- Gilliamella_apis_pandora_subset[, -which(colSums(Gilliamella_apis_pandora_subset) < Gilliamella_apis_rare_sample_cutoff)]
+
+Gilliamella_apis_pandora_subset_norare_ubiq <- rownames(Gilliamella_apis_pandora_subset_norare)[which(rowSums(Gilliamella_apis_pandora_subset_norare) == ncol(Gilliamella_apis_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Gilliamella_apis"]] <- list(genes = Gilliamella_apis_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Gilliamella_apis_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Gilliamella_apis", ] <- c(length(potential_core[["Gilliamella_apis"]]),
+                                                            length(potential_core_all_present_present[["Gilliamella_apis"]]),
+                                                            Gilliamella_apis_rare_sample_cutoff,
+                                                            length(Gilliamella_apis_pandora_subset_norare_ubiq),
+                                                            ncol(Gilliamella_apis_pandora_subset),
+                                                            ncol(Gilliamella_apis_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Gilliamella_apis_rare_sample_cutoff`.
+
+Resulted in `r length(Gilliamella_apis_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Gilliamella_apis_no_rare_prev_num_genes}
+hist(colSums(Gilliamella_apis_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Gilliamella_apis_no_rare_prev_num_samples}
+hist(rowSums(Gilliamella_apis_pandora_subset_norare) / ncol(Gilliamella_apis_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Gilliamella_apis_no_rare_prev_heatmap}
+Heatmap(as.matrix(Gilliamella_apis_pandora_subset_norare[Gilliamella_apis_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+## Lactobacillus_apis {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Lactobacillus_apis_overall_prev}
+
+samples_w_Lactobacillus_apis <- colnames(species_presence)[which(species_presence["Lactobacillus_apis", ] == 1)]
+
+Lactobacillus_apis_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Lactobacillus_apis"]], samples_w_Lactobacillus_apis]
+```
+
+#### Num genes per sample
+```{r Lactobacillus_apis_overall_prev_num_genes}
+hist(colSums(Lactobacillus_apis_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Lactobacillus_apis_overall_prev_prop_samples}
+hist(rowSums(Lactobacillus_apis_pandora_subset) / ncol(Lactobacillus_apis_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Lactobacillus_apis_overall_prev_heatmap}
+Heatmap(as.matrix(Lactobacillus_apis_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Lactobacillus_apis_no_rare_prev}
+Lactobacillus_apis_rare_sample_cutoff <- 200
+Lactobacillus_apis_pandora_subset_norare <- Lactobacillus_apis_pandora_subset[, -which(colSums(Lactobacillus_apis_pandora_subset) < Lactobacillus_apis_rare_sample_cutoff)]
+
+Lactobacillus_apis_pandora_subset_norare_ubiq <- rownames(Lactobacillus_apis_pandora_subset_norare)[which(rowSums(Lactobacillus_apis_pandora_subset_norare) == ncol(Lactobacillus_apis_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Lactobacillus_apis"]] <- list(genes = Lactobacillus_apis_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Lactobacillus_apis_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Lactobacillus_apis", ] <- c(length(potential_core[["Lactobacillus_apis"]]),
+                                                            length(potential_core_all_present_present[["Lactobacillus_apis"]]),
+                                                            Lactobacillus_apis_rare_sample_cutoff,
+                                                            length(Lactobacillus_apis_pandora_subset_norare_ubiq),
+                                                            ncol(Lactobacillus_apis_pandora_subset),
+                                                            ncol(Lactobacillus_apis_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Lactobacillus_apis_rare_sample_cutoff`.
+
+Resulted in `r length(Lactobacillus_apis_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Lactobacillus_apis_no_rare_prev_num_genes}
+hist(colSums(Lactobacillus_apis_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Lactobacillus_apis_no_rare_prev_num_samples}
+hist(rowSums(Lactobacillus_apis_pandora_subset_norare) / ncol(Lactobacillus_apis_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Lactobacillus_apis_no_rare_prev_heatmap}
+Heatmap(as.matrix(Lactobacillus_apis_pandora_subset_norare[Lactobacillus_apis_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+## Lactobacillus_helsingborgensis {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Lactobacillus_helsingborgensis_overall_prev}
+
+samples_w_Lactobacillus_helsingborgensis <- colnames(species_presence)[which(species_presence["Lactobacillus_helsingborgensis", ] == 1)]
+
+Lactobacillus_helsingborgensis_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Lactobacillus_helsingborgensis"]], samples_w_Lactobacillus_helsingborgensis]
+```
+
+#### Num genes per sample
+```{r Lactobacillus_helsingborgensis_overall_prev_num_genes}
+hist(colSums(Lactobacillus_helsingborgensis_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Lactobacillus_helsingborgensis_overall_prev_prop_samples}
+hist(rowSums(Lactobacillus_helsingborgensis_pandora_subset) / ncol(Lactobacillus_helsingborgensis_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Lactobacillus_helsingborgensis_overall_prev_heatmap}
+Heatmap(as.matrix(Lactobacillus_helsingborgensis_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Lactobacillus_helsingborgensis_no_rare_prev}
+Lactobacillus_helsingborgensis_rare_sample_cutoff <- 200
+Lactobacillus_helsingborgensis_pandora_subset_norare <- Lactobacillus_helsingborgensis_pandora_subset[, -which(colSums(Lactobacillus_helsingborgensis_pandora_subset) < Lactobacillus_helsingborgensis_rare_sample_cutoff)]
+
+Lactobacillus_helsingborgensis_pandora_subset_norare_ubiq <- rownames(Lactobacillus_helsingborgensis_pandora_subset_norare)[which(rowSums(Lactobacillus_helsingborgensis_pandora_subset_norare) == ncol(Lactobacillus_helsingborgensis_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Lactobacillus_helsingborgensis"]] <- list(genes = Lactobacillus_helsingborgensis_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Lactobacillus_helsingborgensis_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Lactobacillus_helsingborgensis", ] <- c(length(potential_core[["Lactobacillus_helsingborgensis"]]),
+                                                            length(potential_core_all_present_present[["Lactobacillus_helsingborgensis"]]),
+                                                            Lactobacillus_helsingborgensis_rare_sample_cutoff,
+                                                            length(Lactobacillus_helsingborgensis_pandora_subset_norare_ubiq),
+                                                            ncol(Lactobacillus_helsingborgensis_pandora_subset),
+                                                            ncol(Lactobacillus_helsingborgensis_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Lactobacillus_helsingborgensis_rare_sample_cutoff`.
+
+Resulted in `r length(Lactobacillus_helsingborgensis_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Lactobacillus_helsingborgensis_no_rare_prev_num_genes}
+hist(colSums(Lactobacillus_helsingborgensis_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Lactobacillus_helsingborgensis_no_rare_prev_num_samples}
+hist(rowSums(Lactobacillus_helsingborgensis_pandora_subset_norare) / ncol(Lactobacillus_helsingborgensis_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Lactobacillus_helsingborgensis_no_rare_prev_heatmap}
+Heatmap(as.matrix(Lactobacillus_helsingborgensis_pandora_subset_norare[Lactobacillus_helsingborgensis_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+
+## Lactobacillus_kimbladii {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Lactobacillus_kimbladii_overall_prev}
+
+samples_w_Lactobacillus_kimbladii <- colnames(species_presence)[which(species_presence["Lactobacillus_kimbladii", ] == 1)]
+
+Lactobacillus_kimbladii_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Lactobacillus_kimbladii"]], samples_w_Lactobacillus_kimbladii]
+```
+
+#### Num genes per sample
+```{r Lactobacillus_kimbladii_overall_prev_num_genes}
+hist(colSums(Lactobacillus_kimbladii_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Lactobacillus_kimbladii_overall_prev_prop_samples}
+hist(rowSums(Lactobacillus_kimbladii_pandora_subset) / ncol(Lactobacillus_kimbladii_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Lactobacillus_kimbladii_overall_prev_heatmap}
+Heatmap(as.matrix(Lactobacillus_kimbladii_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Lactobacillus_kimbladii_no_rare_prev}
+Lactobacillus_kimbladii_rare_sample_cutoff <- 150
+Lactobacillus_kimbladii_pandora_subset_norare <- Lactobacillus_kimbladii_pandora_subset[, -which(colSums(Lactobacillus_kimbladii_pandora_subset) < Lactobacillus_kimbladii_rare_sample_cutoff)]
+
+Lactobacillus_kimbladii_pandora_subset_norare_ubiq <- rownames(Lactobacillus_kimbladii_pandora_subset_norare)[which(rowSums(Lactobacillus_kimbladii_pandora_subset_norare) == ncol(Lactobacillus_kimbladii_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Lactobacillus_kimbladii"]] <- list(genes = Lactobacillus_kimbladii_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Lactobacillus_kimbladii_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Lactobacillus_kimbladii", ] <- c(length(potential_core[["Lactobacillus_kimbladii"]]),
+                                                            length(potential_core_all_present_present[["Lactobacillus_kimbladii"]]),
+                                                            Lactobacillus_kimbladii_rare_sample_cutoff,
+                                                            length(Lactobacillus_kimbladii_pandora_subset_norare_ubiq),
+                                                            ncol(Lactobacillus_kimbladii_pandora_subset),
+                                                            ncol(Lactobacillus_kimbladii_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Lactobacillus_kimbladii_rare_sample_cutoff`.
+
+Resulted in `r length(Lactobacillus_kimbladii_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Lactobacillus_kimbladii_no_rare_prev_num_genes}
+hist(colSums(Lactobacillus_kimbladii_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Lactobacillus_kimbladii_no_rare_prev_num_samples}
+hist(rowSums(Lactobacillus_kimbladii_pandora_subset_norare) / ncol(Lactobacillus_kimbladii_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Lactobacillus_kimbladii_no_rare_prev_heatmap}
+Heatmap(as.matrix(Lactobacillus_kimbladii_pandora_subset_norare[Lactobacillus_kimbladii_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+
+## Lactobacillus_kullabergensis {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Lactobacillus_kullabergensis_overall_prev}
+
+samples_w_Lactobacillus_kullabergensis <- colnames(species_presence)[which(species_presence["Lactobacillus_kullabergensis", ] == 1)]
+
+Lactobacillus_kullabergensis_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Lactobacillus_kullabergensis"]], samples_w_Lactobacillus_kullabergensis]
+```
+
+#### Num genes per sample
+```{r Lactobacillus_kullabergensis_overall_prev_num_genes}
+hist(colSums(Lactobacillus_kullabergensis_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Lactobacillus_kullabergensis_overall_prev_prop_samples}
+hist(rowSums(Lactobacillus_kullabergensis_pandora_subset) / ncol(Lactobacillus_kullabergensis_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Lactobacillus_kullabergensis_overall_prev_heatmap}
+Heatmap(as.matrix(Lactobacillus_kullabergensis_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Lactobacillus_kullabergensis_no_rare_prev}
+Lactobacillus_kullabergensis_rare_sample_cutoff <- 75
+Lactobacillus_kullabergensis_pandora_subset_norare <- Lactobacillus_kullabergensis_pandora_subset[, -which(colSums(Lactobacillus_kullabergensis_pandora_subset) < Lactobacillus_kullabergensis_rare_sample_cutoff)]
+
+Lactobacillus_kullabergensis_pandora_subset_norare_ubiq <- rownames(Lactobacillus_kullabergensis_pandora_subset_norare)[which(rowSums(Lactobacillus_kullabergensis_pandora_subset_norare) == ncol(Lactobacillus_kullabergensis_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Lactobacillus_kullabergensis"]] <- list(genes = Lactobacillus_kullabergensis_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Lactobacillus_kullabergensis_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Lactobacillus_kullabergensis", ] <- c(length(potential_core[["Lactobacillus_kullabergensis"]]),
+                                                            length(potential_core_all_present_present[["Lactobacillus_kullabergensis"]]),
+                                                            Lactobacillus_kullabergensis_rare_sample_cutoff,
+                                                            length(Lactobacillus_kullabergensis_pandora_subset_norare_ubiq),
+                                                            ncol(Lactobacillus_kullabergensis_pandora_subset),
+                                                            ncol(Lactobacillus_kullabergensis_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Lactobacillus_kullabergensis_rare_sample_cutoff`.
+
+Resulted in `r length(Lactobacillus_kullabergensis_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Lactobacillus_kullabergensis_no_rare_prev_num_genes}
+hist(colSums(Lactobacillus_kullabergensis_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Lactobacillus_kullabergensis_no_rare_prev_num_samples}
+hist(rowSums(Lactobacillus_kullabergensis_pandora_subset_norare) / ncol(Lactobacillus_kullabergensis_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Lactobacillus_kullabergensis_no_rare_prev_heatmap}
+Heatmap(as.matrix(Lactobacillus_kullabergensis_pandora_subset_norare[Lactobacillus_kullabergensis_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+
+## Lactobacillus_melliventris {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Lactobacillus_melliventris_overall_prev}
+
+samples_w_Lactobacillus_melliventris <- colnames(species_presence)[which(species_presence["Lactobacillus_melliventris", ] == 1)]
+
+Lactobacillus_melliventris_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Lactobacillus_melliventris"]], samples_w_Lactobacillus_melliventris]
+```
+
+#### Num genes per sample
+```{r Lactobacillus_melliventris_overall_prev_num_genes}
+hist(colSums(Lactobacillus_melliventris_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Lactobacillus_melliventris_overall_prev_prop_samples}
+hist(rowSums(Lactobacillus_melliventris_pandora_subset) / ncol(Lactobacillus_melliventris_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Lactobacillus_melliventris_overall_prev_heatmap}
+Heatmap(as.matrix(Lactobacillus_melliventris_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Lactobacillus_melliventris_no_rare_prev}
+Lactobacillus_melliventris_rare_sample_cutoff <- 100
+Lactobacillus_melliventris_pandora_subset_norare <- Lactobacillus_melliventris_pandora_subset[, -which(colSums(Lactobacillus_melliventris_pandora_subset) < Lactobacillus_melliventris_rare_sample_cutoff)]
+
+Lactobacillus_melliventris_pandora_subset_norare_ubiq <- rownames(Lactobacillus_melliventris_pandora_subset_norare)[which(rowSums(Lactobacillus_melliventris_pandora_subset_norare) == ncol(Lactobacillus_melliventris_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Lactobacillus_melliventris"]] <- list(genes = Lactobacillus_melliventris_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Lactobacillus_melliventris_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Lactobacillus_melliventris", ] <- c(length(potential_core[["Lactobacillus_melliventris"]]),
+                                                            length(potential_core_all_present_present[["Lactobacillus_melliventris"]]),
+                                                            Lactobacillus_melliventris_rare_sample_cutoff,
+                                                            length(Lactobacillus_melliventris_pandora_subset_norare_ubiq),
+                                                            ncol(Lactobacillus_melliventris_pandora_subset),
+                                                            ncol(Lactobacillus_melliventris_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Lactobacillus_melliventris_rare_sample_cutoff`.
+
+Resulted in `r length(Lactobacillus_melliventris_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Lactobacillus_melliventris_no_rare_prev_num_genes}
+hist(colSums(Lactobacillus_melliventris_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Lactobacillus_melliventris_no_rare_prev_num_samples}
+hist(rowSums(Lactobacillus_melliventris_pandora_subset_norare) / ncol(Lactobacillus_melliventris_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Lactobacillus_melliventris_no_rare_prev_heatmap}
+Heatmap(as.matrix(Lactobacillus_melliventris_pandora_subset_norare[Lactobacillus_melliventris_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+
+## Snodgrassella_alvi {.tabset}
+
+### Core gene prev in samples where present {.tabset}
+
+```{r Snodgrassella_alvi_overall_prev}
+
+samples_w_Snodgrassella_alvi <- colnames(species_presence)[which(species_presence["Snodgrassella_alvi", ] == 1)]
+
+Snodgrassella_alvi_pandora_subset <- pandora_output_all_present[potential_core_all_present_present[["Snodgrassella_alvi"]], samples_w_Snodgrassella_alvi]
+```
+
+#### Num genes per sample
+```{r Snodgrassella_alvi_overall_prev_num_genes}
+hist(colSums(Snodgrassella_alvi_pandora_subset), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Snodgrassella_alvi_overall_prev_prop_samples}
+hist(rowSums(Snodgrassella_alvi_pandora_subset) / ncol(Snodgrassella_alvi_pandora_subset), breaks = 100, xlim = c(0, 1))
+```
+
+#### Heatmap
+```{r Snodgrassella_alvi_overall_prev_heatmap}
+Heatmap(as.matrix(Snodgrassella_alvi_pandora_subset),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = FALSE,
+          show_column_names = FALSE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+### Core gene prev with samples with low #'s genes removed {.tabset}
+
+```{r Snodgrassella_alvi_no_rare_prev}
+Snodgrassella_alvi_rare_sample_cutoff <- 800
+Snodgrassella_alvi_pandora_subset_norare <- Snodgrassella_alvi_pandora_subset[, -which(colSums(Snodgrassella_alvi_pandora_subset) < Snodgrassella_alvi_rare_sample_cutoff)]
+
+Snodgrassella_alvi_pandora_subset_norare_ubiq <- rownames(Snodgrassella_alvi_pandora_subset_norare)[which(rowSums(Snodgrassella_alvi_pandora_subset_norare) == ncol(Snodgrassella_alvi_pandora_subset_norare))]
+
+StrainFinder_core_gene_info[["Snodgrassella_alvi"]] <- list(genes = Snodgrassella_alvi_pandora_subset_norare_ubiq,
+                                                            samples = colnames(Snodgrassella_alvi_pandora_subset_norare))
+
+StrainFinder_core_gene_summary["Snodgrassella_alvi", ] <- c(length(potential_core[["Snodgrassella_alvi"]]),
+                                                            length(potential_core_all_present_present[["Snodgrassella_alvi"]]),
+                                                            Snodgrassella_alvi_rare_sample_cutoff,
+                                                            length(Snodgrassella_alvi_pandora_subset_norare_ubiq),
+                                                            ncol(Snodgrassella_alvi_pandora_subset),
+                                                            ncol(Snodgrassella_alvi_pandora_subset_norare))
+```
+
+Decided to exclude samples with # core genes < `r Snodgrassella_alvi_rare_sample_cutoff`.
+
+Resulted in `r length(Snodgrassella_alvi_pandora_subset_norare_ubiq)` genes overlapping across all samples.
+
+
+#### Num genes per sample
+```{r Snodgrassella_alvi_no_rare_prev_num_genes}
+hist(colSums(Snodgrassella_alvi_pandora_subset_norare), breaks = 100)
+```
+
+#### Prop samples per gene
+```{r Snodgrassella_alvi_no_rare_prev_num_samples}
+hist(rowSums(Snodgrassella_alvi_pandora_subset_norare) / ncol(Snodgrassella_alvi_pandora_subset_norare), breaks = 100, xlim = c(0, 1))
+```
+
+
+#### Heatmap
+```{r Snodgrassella_alvi_no_rare_prev_heatmap}
+Heatmap(as.matrix(Snodgrassella_alvi_pandora_subset_norare[Snodgrassella_alvi_pandora_subset_norare_ubiq, ]),
+          show_row_dend = FALSE,
+          show_column_dend = FALSE,
+          show_row_names = TRUE,
+          show_column_names = TRUE,
+        clustering_distance_rows = "binary",
+        clustering_distance_columns = "binary")
+```
+
+
+# StrainFinder strain inference gene / sample count
+
+```{r StrainFinder_input_summary}
+
+kable(StrainFinder_core_gene_summary) %>%
+  kable_styling(full_width = FALSE)
+
+saveRDS(object = StrainFinder_core_gene_summary,
+        file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/core_genes/StrainFinder_core_gene_input_summary_table.rds")
+
+saveRDS(object = StrainFinder_core_gene_info,
+        file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/core_genes/StrainFinder_core_genes_and_samples_inputs.rds")
+
+
+```
+
