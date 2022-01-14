@@ -1,5 +1,6 @@
-### For species with < 10 genomes I identified core genes based on marker gene sets associated with
-### the closest rank associated with the lineage in checkm
+### For species with < 10 genomes I identified core genes based on marker gene sets associated with the closest rank associated
+### with the lineage in checkm. Need to figure out what panaroo orthologs these correspond to and whether they are found in the MGS data
+### (at least in cases when most other potential core genes are also present).
 
 rm(list = ls(all.names = TRUE))
 
@@ -9,74 +10,50 @@ species_subset <- c("Apilactobacillus_apinorum", "Apilactobacillus_kunkeei", "Ba
                     "Lactobacillus_helsingborgensis", "Lactobacillus_kimbladii", "Lactobacillus_kullabergensis",
                     "Lactobacillus_melliventris", "Serratia_marcescens")
 
-for (sp in species) {
+panaroo_passed_core <- list()
 
-  if (sp == "Apilactobacillus_apinorum") {
-    custom_core_needed <- c(custom_core_needed, sp)
-    next
-  }
-   
+for (sp in species_subset) {
+
+  panaroo_passed_core[[sp]] <- c()
+  
+  sp_checkm_marker_hits_file <- paste("/data1/gdouglas/projects/honey_bee/ref_genomes/checkm_core_genes/", sp, "_marker_hits.tsv", sep = "")
+  sp_checkm_marker_hit_info <- read.table(sp_checkm_marker_hits_file, stringsAsFactors = FALSE, header = TRUE, sep = "\t")
+  
+  # Remove marker genes that have multiple hits in the same genome.
+  sp_checkm_marker_hits <- sp_checkm_marker_hit_info$Gene.Id[grep(",", sp_checkm_marker_hit_info$Gene.Id, invert = TRUE)]
+  
   sp_panaroo_outfile <- paste("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/highqual_genomes_panaroo/", sp, "/gene_presence_absence_roary.csv.gz", sep = "")
-  
   sp_panaroo <- read.table(sp_panaroo_outfile, header = TRUE, sep = ",", comment.char = "", quote = "")
-  
   rownames(sp_panaroo) <- paste(sp, sp_panaroo$Gene, sep = "_")
-  
+
   sp_num_genomes <- ncol(sp_panaroo) - 15 + 1
   
-  if (sp_num_genomes < 10) {
-    custom_core_needed <- c(custom_core_needed, sp)
-    next
+  colnames(sp_panaroo[, 15:ncol(sp_panaroo)])
+  
+  sp_potential_core <- list()
+  
+  for (gene in rownames(sp_panaroo)) {
+    cds_ids <- sp_panaroo[gene, 15:ncol(sp_panaroo)]
+    
+    match_count = 0
+    for (cds in cds_ids) {
+       if (cds %in% sp_checkm_marker_hits) {
+           match_count <- match_count + 1
+       }
+    }
+    
+    if (match_count == sp_num_genomes) {
+      panaroo_passed_core[[sp]] <- c(panaroo_passed_core[[sp]], gene) 
+    } else if(match_count > 0) {
+      ### For sanity checks - choose some genes to check by hand.
+      #print(gene) 
+    }
+    
   }
-  
-  core_genes[[sp]] <- rownames(sp_panaroo)[which(sp_panaroo$No..isolates == sp_num_genomes)]
-  
-  print(sp)
-  print(length(which(sp_panaroo$No..isolates == sp_num_genomes)))
-  print("--------")
   
 }
 
 
-Bifidobacterium_panaroo <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Bifidobacterium/gene_presence_absence_roary.csv",
-                                      header = TRUE, sep = ",", comment.char = "", quote = "")
-rownames(Bifidobacterium_panaroo) <- paste("Bifidobacterium", Bifidobacterium_panaroo$Gene, sep = "_")
-core_genes[["Bifidobacterium"]] <- rownames(Bifidobacterium_panaroo)[which(Bifidobacterium_panaroo$No..isolates >= 14)]
-
-
-Firm4_panaroo <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Firm4/gene_presence_absence_roary.csv.gz",
-                            header = TRUE, sep = ",", comment.char = "", quote = "")
-rownames(Firm4_panaroo) <- paste("Firm4", Firm4_panaroo$Gene, sep = "_")
-core_genes[["Firm4"]] <- rownames(Firm4_panaroo)[which(Firm4_panaroo$No..isolates >= 5)]
-
-
-Firm5_panaroo <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Firm5/gene_presence_absence_roary.csv",
-                            header = TRUE, sep = ",", comment.char = "", quote = "")
-rownames(Firm5_panaroo) <- paste("Firm5", Firm5_panaroo$Gene, sep = "_")
-core_genes[["Firm5"]] <- rownames(Firm5_panaroo)[which(Firm5_panaroo$No..isolates >= 25)]
-
-
-Gilliamella_panaroo <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Gilliamella/gene_presence_absence_roary.csv",
-                                  header = TRUE, sep = ",", comment.char = "", quote = "")
-rownames(Gilliamella_panaroo) <- paste("Gilliamella", Gilliamella_panaroo$Gene, sep = "_")
-core_genes[["Gilliamella"]] <- rownames(Gilliamella_panaroo)[which(Gilliamella_panaroo$No..isolates >= 98)]
-
-
-Snodgrassella_panaroo <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/Snodgrassella/gene_presence_absence_roary.csv",
-                                    header = TRUE, sep = ",", comment.char = "", quote = "")
-rownames(Snodgrassella_panaroo) <- paste("Snodgrassella", Snodgrassella_panaroo$Gene, sep = "_")
-core_genes[["Snodgrassella"]] <- rownames(Snodgrassella_panaroo)[which(Snodgrassella_panaroo$No..isolates >= 51)]
-
-all_core_genes <- c(core_genes$Bifidobacterium, core_genes$Firm4, core_genes$Firm5, core_genes$Gilliamella, core_genes$Snodgrassella)
-
-
-# Combine all panaroo tables into single master dataframe
-all_panaroo <- rbind(Bifidobacterium_panaroo[, c(1:14)], Firm4_panaroo[, c(1:14)])
-all_panaroo <- rbind(all_panaroo, Firm5_panaroo[, c(1:14)])
-all_panaroo <- rbind(all_panaroo, Gilliamella_panaroo[, c(1:14)])
-all_panaroo <- rbind(all_panaroo, Snodgrassella_panaroo[, c(1:14)])
-
-panaroo_summary <- list(core_genes = all_core_genes, panaroo_all_phylotypes = all_panaroo)
-
-saveRDS(object = panaroo_summary, file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_out_ref_only/combined_panaroo_and_core_genes.rds")
+saveRDS(object = panaroo_passed_core,
+        file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/core_genes/draft_core_genes/checkm_panaroo_passed_potential_core.rds")
 

@@ -58,7 +58,7 @@ for (sp in species) {
   # Ignore "Apilactobacillus_apinorum" as there is only one genome so I didn't run panaroo.
   if (sp == "Apilactobacillus_apinorum") { next }
 
-  panaroo_tab_path <- paste("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/highqual_genomes_panaroo", sp, "gene_presence_absence_roary.csv", sep = "/")
+  panaroo_tab_path <- paste("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/highqual_genomes_panaroo", sp, "gene_presence_absence_roary.csv.gz", sep = "/")
   panaroo_tables[[sp]] <- read.table(panaroo_tab_path, header = TRUE, sep = ",", comment.char = "", quote = "")
   rownames(panaroo_tables[[sp]]) <- paste(sp, panaroo_tables[[sp]]$Gene, sep = "_")
   
@@ -78,7 +78,14 @@ for (sp in species) {
 
 
 ```{r add_Apilactobacillus_apinorum_count_manually}
-panaroo_counts["Apilactobacillus_apinorum", ] <- c(1, 1377, 0, 0, 1377)
+
+Apilactobacillus_apinorum_gene_ids <- read.table("/data1/gdouglas/projects/honey_bee/ref_genomes/highqual_genomes_prokka/Apilactobacillus_apinorum/GCA_001281175.1/GCA_001281175.1.ids.txt", header = FALSE, stringsAsFactors = FALSE)$V1
+
+Apilactobacillus_apinorum_gene_ids <- paste("Apilactobacillus_apinorum", Apilactobacillus_apinorum_gene_ids, sep = "_")
+
+panaroo_counts["Apilactobacillus_apinorum", ] <- c(1, length(Apilactobacillus_apinorum_gene_ids), 0, 0, length(Apilactobacillus_apinorum_gene_ids))
+
+gene_categories[["Apilactobacillus_apinorum"]] <- list(cloud = c(), shell = c(), core = Apilactobacillus_apinorum_gene_ids)
 ```
 
 # Genome and gene count summaries
@@ -108,308 +115,472 @@ for (sp in species) {
 ```
 
 
-<!-- # Percent annotated genes {.tabset} -->
+# Percent annotated genes {.tabset}
 
-<!-- ## CAZy -->
+## CAZy
 
-<!-- ```{r CAZy_percent_annot_heatmap} -->
-<!-- CAZy_annot <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_ref_only_annot/CAZy_microbiota_panaroo_orthologs.tsv.gz", -->
-<!--                          header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1) -->
+```{r CAZy_percent_annot_heatmap}
+CAZy_annot <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/eggNOG_output/all_microbiota_CAZy_by_ortholog.tsv", 
+                         header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
 
-<!-- CAZy_annoted_raw <- list() -->
+CAZy_annoted_raw <- list()
 
-<!-- for (sp in species) { -->
+for (sp in species) {
 
-<!--   CAZy_annoted_raw[[sp]] <- data.frame(matrix(NA, nrow = 3, ncol = 3)) -->
-<!--   colnames(CAZy_annoted_raw[[sp]]) <- c("sp", "gene_category", "percent_CAZy_annot") -->
-<!--   rownames(CAZy_annoted_raw[[sp]]) <- c("cloud", "shell", "core") -->
+  CAZy_annoted_raw[[sp]] <- data.frame(matrix(NA, nrow = 3, ncol = 3))
+  colnames(CAZy_annoted_raw[[sp]]) <- c("sp", "gene_category", "percent_CAZy_annot")
+  rownames(CAZy_annoted_raw[[sp]]) <- c("cloud", "shell", "core")
 
-<!--   CAZy_annoted_raw[[sp]]$sp <- sp -->
-<!--   CAZy_annoted_raw[[sp]]$gene_category <- rownames(CAZy_annoted_raw[[sp]]) -->
+  CAZy_annoted_raw[[sp]]$sp <- sp
+  CAZy_annoted_raw[[sp]]$gene_category <- rownames(CAZy_annoted_raw[[sp]])
 
-<!--   CAZy_annoted_raw[[sp]]["cloud", "percent_CAZy_annot"] <- (length(which(gene_categories[[sp]]$cloud %in% rownames(CAZy_annot))) / length(gene_categories[[sp]]$cloud)) * 100 -->
-<!--   CAZy_annoted_raw[[sp]]["shell", "percent_CAZy_annot"] <- (length(which(gene_categories[[sp]]$shell %in% rownames(CAZy_annot))) / length(gene_categories[[sp]]$shell)) * 100 -->
-<!--   CAZy_annoted_raw[[sp]]["core", "percent_CAZy_annot"] <- (length(which(gene_categories[[sp]]$core %in% rownames(CAZy_annot))) / length(gene_categories[[sp]]$core)) * 100 -->
+  CAZy_annoted_raw[[sp]]["cloud", "percent_CAZy_annot"] <- (length(which(gene_categories[[sp]]$cloud %in% rownames(CAZy_annot))) / length(gene_categories[[sp]]$cloud)) * 100
+  CAZy_annoted_raw[[sp]]["shell", "percent_CAZy_annot"] <- (length(which(gene_categories[[sp]]$shell %in% rownames(CAZy_annot))) / length(gene_categories[[sp]]$shell)) * 100
+  CAZy_annoted_raw[[sp]]["core", "percent_CAZy_annot"] <- (length(which(gene_categories[[sp]]$core %in% rownames(CAZy_annot))) / length(gene_categories[[sp]]$core)) * 100
 
-<!-- } -->
+}
 
-<!-- CAZy_annoted_tab <- do.call(rbind, CAZy_annoted_raw) -->
+CAZy_annoted_tab <- do.call(rbind, CAZy_annoted_raw)
 
-<!-- CAZy_annoted_tab$percent_CAZy_annot <- round(CAZy_annoted_tab$percent_CAZy_annot, 3) -->
+CAZy_annoted_tab$percent_CAZy_annot <- round(CAZy_annoted_tab$percent_CAZy_annot, 3)
 
-<!-- CAZy_annoted_tab$sp <- factor(CAZy_annoted_tab$sp, levels = rev(c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella"))) -->
+CAZy_annoted_tab$sp <- factor(CAZy_annoted_tab$sp, levels = rev(species))
 
-<!-- CAZy_annoted_tab$gene_category <- factor(CAZy_annoted_tab$gene_category, levels = c("cloud", "shell", "core")) -->
+CAZy_annoted_tab$gene_category <- factor(CAZy_annoted_tab$gene_category, levels = c("cloud", "shell", "core"))
 
-<!-- ggplot(data = CAZy_annoted_tab, aes(x = gene_category, y = sp, fill = percent_CAZy_annot)) + -->
-<!--         geom_tile() + -->
-<!--         geom_text(aes(label = percent_CAZy_annot)) + -->
-<!--         scale_fill_continuous(low = "white", high = "red") -->
-<!-- ``` -->
+ggplot(data = CAZy_annoted_tab, aes(x = gene_category, y = sp, fill = percent_CAZy_annot)) +
+        geom_tile() +
+        geom_text(aes(label = percent_CAZy_annot)) +
+        scale_fill_continuous(low = "white", high = "red")
+```
 
 
 
-<!-- ## KEGG -->
+## KEGG
 
-<!-- ```{r KEGG_percent_annot_heatmap} -->
-<!-- KEGG_annot <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_ref_only_annot/KO_microbiota_panaroo_orthologs.tsv.gz", -->
-<!--                          header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1) -->
+```{r KEGG_percent_annot_heatmap}
+KEGG_annot <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/KEGG_output/all_microbiota_KO_by_ortholog.tsv",
+                         header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
 
-<!-- KEGG_annoted_raw <- list() -->
+KEGG_annoted_raw <- list()
 
-<!-- for (sp in species) { -->
+for (sp in species) {
 
-<!--   KEGG_annoted_raw[[sp]] <- data.frame(matrix(NA, nrow = 3, ncol = 3)) -->
-<!--   colnames(KEGG_annoted_raw[[sp]]) <- c("sp", "gene_category", "percent_KEGG_annot") -->
-<!--   rownames(KEGG_annoted_raw[[sp]]) <- c("cloud", "shell", "core") -->
+  KEGG_annoted_raw[[sp]] <- data.frame(matrix(NA, nrow = 3, ncol = 3))
+  colnames(KEGG_annoted_raw[[sp]]) <- c("sp", "gene_category", "percent_KEGG_annot")
+  rownames(KEGG_annoted_raw[[sp]]) <- c("cloud", "shell", "core")
 
-<!--   KEGG_annoted_raw[[sp]]$sp <- sp -->
-<!--   KEGG_annoted_raw[[sp]]$gene_category <- rownames(KEGG_annoted_raw[[sp]]) -->
+  KEGG_annoted_raw[[sp]]$sp <- sp
+  KEGG_annoted_raw[[sp]]$gene_category <- rownames(KEGG_annoted_raw[[sp]])
 
-<!--   KEGG_annoted_raw[[sp]]["cloud", "percent_KEGG_annot"] <- (length(which(gene_categories[[sp]]$cloud %in% rownames(KEGG_annot))) / length(gene_categories[[sp]]$cloud)) * 100 -->
-<!--   KEGG_annoted_raw[[sp]]["shell", "percent_KEGG_annot"] <- (length(which(gene_categories[[sp]]$shell %in% rownames(KEGG_annot))) / length(gene_categories[[sp]]$shell)) * 100 -->
-<!--   KEGG_annoted_raw[[sp]]["core", "percent_KEGG_annot"] <- (length(which(gene_categories[[sp]]$core %in% rownames(KEGG_annot))) / length(gene_categories[[sp]]$core)) * 100 -->
+  KEGG_annoted_raw[[sp]]["cloud", "percent_KEGG_annot"] <- (length(which(gene_categories[[sp]]$cloud %in% rownames(KEGG_annot))) / length(gene_categories[[sp]]$cloud)) * 100
+  KEGG_annoted_raw[[sp]]["shell", "percent_KEGG_annot"] <- (length(which(gene_categories[[sp]]$shell %in% rownames(KEGG_annot))) / length(gene_categories[[sp]]$shell)) * 100
+  KEGG_annoted_raw[[sp]]["core", "percent_KEGG_annot"] <- (length(which(gene_categories[[sp]]$core %in% rownames(KEGG_annot))) / length(gene_categories[[sp]]$core)) * 100
 
-<!-- } -->
+}
 
-<!-- KEGG_annoted_tab <- do.call(rbind, KEGG_annoted_raw) -->
+KEGG_annoted_tab <- do.call(rbind, KEGG_annoted_raw)
 
-<!-- KEGG_annoted_tab$percent_KEGG_annot <- round(KEGG_annoted_tab$percent_KEGG_annot, 3) -->
+KEGG_annoted_tab$percent_KEGG_annot <- round(KEGG_annoted_tab$percent_KEGG_annot, 3)
 
-<!-- KEGG_annoted_tab$sp <- factor(KEGG_annoted_tab$sp, levels = rev(c("Bifidobacterium", "Firm4", "Firm5", "Gilliamella", "Snodgrassella"))) -->
+KEGG_annoted_tab$sp <- factor(KEGG_annoted_tab$sp, levels = rev(species))
 
-<!-- KEGG_annoted_tab$gene_category <- factor(KEGG_annoted_tab$gene_category, levels = c("cloud", "shell", "core")) -->
+KEGG_annoted_tab$gene_category <- factor(KEGG_annoted_tab$gene_category, levels = c("cloud", "shell", "core"))
 
-<!-- ggplot(data = KEGG_annoted_tab, aes(x = gene_category, y = sp, fill = percent_KEGG_annot)) + -->
-<!--         geom_tile() + -->
-<!--         geom_text(aes(label = percent_KEGG_annot)) + -->
-<!--         scale_fill_continuous(low = "white", high = "red") -->
-<!-- ``` -->
+ggplot(data = KEGG_annoted_tab, aes(x = gene_category, y = sp, fill = percent_KEGG_annot)) +
+        geom_tile() +
+        geom_text(aes(label = percent_KEGG_annot)) +
+        scale_fill_continuous(low = "white", high = "red")
+```
 
-<!-- # Breakdown of functional categories {.tabset} -->
 
-<!-- ## CAZy -->
+## COG.category
 
-<!-- ```{r CAZy_sp_relabun_breakdown, fig.width = 8, fig.height = 6} -->
-<!-- CAZy_families_annot_raw <- list() -->
-<!-- CAZy_families_annot_raw_all_cat <- list() -->
+```{r COG_percent_annot_heatmap}
+COG_annot <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/eggNOG_output/all_microbiota_COG.category_by_ortholog.tsv",
+                         header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
 
-<!-- CAZy_family_info <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/panaroo_ref_only_annot/2021_10_14_CAZy_family_info.txt.gz", -->
-<!--                                header = TRUE, sep = "\t", stringsAsFactors = FALSE, row.names = 1) -->
+COG_annoted_raw <- list()
 
-<!-- for (sp in species) { -->
+for (sp in species) {
 
-<!--   CAZy_families_annot_raw[[sp]] <- list() -->
+  COG_annoted_raw[[sp]] <- data.frame(matrix(NA, nrow = 3, ncol = 3))
+  colnames(COG_annoted_raw[[sp]]) <- c("sp", "gene_category", "percent_COG_annot")
+  rownames(COG_annoted_raw[[sp]]) <- c("cloud", "shell", "core")
 
-<!--   for (gene_category in c("cloud", "shell", "core")) { -->
+  COG_annoted_raw[[sp]]$sp <- sp
+  COG_annoted_raw[[sp]]$gene_category <- rownames(COG_annoted_raw[[sp]])
 
-<!--     CAZy_families_annot_raw[[sp]][[gene_category]] <- data.frame(matrix(NA, nrow = nrow(CAZy_family_info), ncol = 5)) -->
-<!--     rownames(CAZy_families_annot_raw[[sp]][[gene_category]]) <- rownames(CAZy_family_info) -->
-<!--     colnames(CAZy_families_annot_raw[[sp]][[gene_category]]) <- c("CAZy_family", "sp", "gene_category", "num_genes", "percent_CAZy_annot_genes") -->
-<!--     CAZy_families_annot_raw[[sp]][[gene_category]]$CAZy_family <- CAZy_family_info$family -->
-<!--     CAZy_families_annot_raw[[sp]][[gene_category]]$sp <- sp -->
+  COG_annoted_raw[[sp]]["cloud", "percent_COG_annot"] <- (length(which(gene_categories[[sp]]$cloud %in% rownames(COG_annot))) / length(gene_categories[[sp]]$cloud)) * 100
+  COG_annoted_raw[[sp]]["shell", "percent_COG_annot"] <- (length(which(gene_categories[[sp]]$shell %in% rownames(COG_annot))) / length(gene_categories[[sp]]$shell)) * 100
+  COG_annoted_raw[[sp]]["core", "percent_COG_annot"] <- (length(which(gene_categories[[sp]]$core %in% rownames(COG_annot))) / length(gene_categories[[sp]]$core)) * 100
 
-<!--     sp_category_CAZy_annot_genes <- gene_categories[[sp]][[gene_category]][which(gene_categories[[sp]][[gene_category]] %in% rownames(CAZy_annot))] -->
+}
 
-<!--     CAZy_families_annot_raw[[sp]][[gene_category]]$gene_category <- gene_category -->
+COG_annoted_tab <- do.call(rbind, COG_annoted_raw)
 
-<!--     if (length(sp_category_CAZy_annot_genes) == 0) { next } -->
+COG_annoted_tab$percent_COG_annot <- round(COG_annoted_tab$percent_COG_annot, 3)
 
-<!--     sp_category_CAZy_annot_categories <- CAZy_annot[sp_category_CAZy_annot_genes, ] -->
+COG_annoted_tab$sp <- factor(COG_annoted_tab$sp, levels = rev(species))
 
-<!--     for (CAZy_family in rownames(CAZy_family_info)) { -->
-<!--       CAZy_families_annot_raw[[sp]][[gene_category]][CAZy_family, "num_genes"] <- length(grep(CAZy_family, sp_category_CAZy_annot_categories)) -->
-<!--     } -->
+COG_annoted_tab$gene_category <- factor(COG_annoted_tab$gene_category, levels = c("cloud", "shell", "core"))
 
-<!--     CAZy_families_annot_raw[[sp]][[gene_category]]$percent_CAZy_annot_genes <- (CAZy_families_annot_raw[[sp]][[gene_category]]$num_genes / sum(CAZy_families_annot_raw[[sp]][[gene_category]]$num_genes)) * 100 -->
+ggplot(data = COG_annoted_tab, aes(x = gene_category, y = sp, fill = percent_COG_annot)) +
+        geom_tile() +
+        geom_text(aes(label = percent_COG_annot)) +
+        scale_fill_continuous(low = "white", high = "red")
+```
 
-<!--   } -->
 
-<!--   CAZy_families_annot_raw_all_cat[[sp]] <- do.call(rbind, CAZy_families_annot_raw[[sp]]) -->
-<!-- } -->
+## Broadest OG
 
-<!-- CAZy_families_annot <- do.call(rbind, CAZy_families_annot_raw_all_cat) -->
+```{r broadestOG_percent_annot_heatmap}
+broadestOG_annot <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/eggNOG_output/all_microbiota_eggNOG_by_ortholog.tsv",
+                         header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
 
-<!-- CAZy_families_annot$gene_category <- factor(CAZy_families_annot$gene_category, levels = c("cloud", "shell", "core")) -->
+broadestOG_annoted_raw <- list()
 
-<!-- ggplot(data = CAZy_families_annot, aes(x = gene_category, y = percent_CAZy_annot_genes, fill = CAZy_family)) + -->
-<!--         geom_bar(stat = "identity") + -->
-<!--         facet_grid(. ~ sp) + -->
-<!--         scale_fill_manual(values = c("grey90", "black", "brown", "light green", "blue", "yellow")) + -->
-<!--         xlab("") + -->
-<!--         ylab("% of CAZy-annotated genes") + -->
-<!--         theme_bw() -->
-<!-- ``` -->
+for (sp in species) {
 
+  broadestOG_annoted_raw[[sp]] <- data.frame(matrix(NA, nrow = 3, ncol = 3))
+  colnames(broadestOG_annoted_raw[[sp]]) <- c("sp", "gene_category", "percent_broadestOG_annot")
+  rownames(broadestOG_annoted_raw[[sp]]) <- c("cloud", "shell", "core")
 
-<!-- ## KEGG {.tabset} -->
+  broadestOG_annoted_raw[[sp]]$sp <- sp
+  broadestOG_annoted_raw[[sp]]$gene_category <- rownames(broadestOG_annoted_raw[[sp]])
 
-<!-- ### KEGG modules -->
+  broadestOG_annoted_raw[[sp]]["cloud", "percent_broadestOG_annot"] <- (length(which(gene_categories[[sp]]$cloud %in% rownames(broadestOG_annot))) / length(gene_categories[[sp]]$cloud)) * 100
+  broadestOG_annoted_raw[[sp]]["shell", "percent_broadestOG_annot"] <- (length(which(gene_categories[[sp]]$shell %in% rownames(broadestOG_annot))) / length(gene_categories[[sp]]$shell)) * 100
+  broadestOG_annoted_raw[[sp]]["core", "percent_broadestOG_annot"] <- (length(which(gene_categories[[sp]]$core %in% rownames(broadestOG_annot))) / length(gene_categories[[sp]]$core)) * 100
 
-<!-- ```{r KEGG_modules_sp_relabun_breakdown, fig.width = 12, fig.height = 8} -->
-<!-- KEGG_modules_annot_raw <- list() -->
-<!-- KEGG_modules_annot_raw_all_cat <- list() -->
+}
 
-<!-- KEGG_module_info <- read.table("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_ko_module_links.tsv.gz", -->
-<!--                                header = FALSE, sep = "\t", stringsAsFactors = FALSE) -->
+broadestOG_annoted_tab <- do.call(rbind, broadestOG_annoted_raw)
 
-<!-- KEGG_module_descrip <- read.table("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_module_descrip.tsv.gz", -->
-<!--                                   header = FALSE, sep = "\t", stringsAsFactors = FALSE) -->
-<!-- rownames(KEGG_module_descrip) <- gsub("md:", "", KEGG_module_descrip$V1) -->
-<!-- KEGG_module_descrip$descrip <- paste(rownames(KEGG_module_descrip) , KEGG_module_descrip$V2, sep = " - ") -->
+broadestOG_annoted_tab$percent_broadestOG_annot <- round(broadestOG_annoted_tab$percent_broadestOG_annot, 3)
 
-<!-- KEGG_module_info$V1 <- gsub("ko:", "", KEGG_module_info$V1) -->
-<!-- KEGG_module_info$V2 <- gsub("md:", "", KEGG_module_info$V2) -->
-<!-- colnames(KEGG_module_info) <- c("KO", "module") -->
+broadestOG_annoted_tab$sp <- factor(broadestOG_annoted_tab$sp, levels = rev(species))
 
-<!-- unique_KEGG_modules <- names(table(KEGG_module_info$module)) -->
+broadestOG_annoted_tab$gene_category <- factor(broadestOG_annoted_tab$gene_category, levels = c("cloud", "shell", "core"))
 
-<!-- for (sp in species) { -->
+ggplot(data = broadestOG_annoted_tab, aes(x = gene_category, y = sp, fill = percent_broadestOG_annot)) +
+        geom_tile() +
+        geom_text(aes(label = percent_broadestOG_annot)) +
+        scale_fill_continuous(low = "white", high = "red")
+```
 
-<!--   KEGG_modules_annot_raw[[sp]] <- list() -->
 
-<!--   for (gene_category in c("cloud", "shell", "core")) { -->
+# Breakdown of functional categories {.tabset}
 
-<!--     KEGG_modules_annot_raw[[sp]][[gene_category]] <- data.frame(matrix(NA, nrow = length(unique_KEGG_modules), ncol = 6)) -->
-<!--     rownames(KEGG_modules_annot_raw[[sp]][[gene_category]]) <- unique_KEGG_modules -->
-<!--     colnames(KEGG_modules_annot_raw[[sp]][[gene_category]]) <- c("KEGG_module", "KEGG_module_descrip", "sp", "gene_category", "num_genes", "percent_KEGG_annot_genes") -->
-<!--     KEGG_modules_annot_raw[[sp]][[gene_category]]$KEGG_module <- unique_KEGG_modules -->
-<!--     KEGG_modules_annot_raw[[sp]][[gene_category]]$KEGG_module_descrip <- KEGG_module_descrip[unique_KEGG_modules, "descrip"] -->
-<!--     KEGG_modules_annot_raw[[sp]][[gene_category]]$sp <- sp -->
+## CAZy
 
-<!--     sp_category_KEGG_annot_genes <- gene_categories[[sp]][[gene_category]][which(gene_categories[[sp]][[gene_category]] %in% rownames(KEGG_annot))] -->
+```{r CAZy_sp_relabun_breakdown, fig.width = 10, fig.height = 12}
+CAZy_families_annot_raw <- list()
+CAZy_families_annot_raw_all_cat <- list()
 
-<!--     KEGG_modules_annot_raw[[sp]][[gene_category]]$gene_category <- gene_category -->
+CAZy_family_info <- read.table("/data1/gdouglas/db/2021_10_14_CAZy_family_info.txt.gz",
+                               header = TRUE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
 
-<!--     if (length(sp_category_KEGG_annot_genes) == 0) { next } -->
+for (sp in species) {
 
-<!--     sp_category_KEGG_annot_KOs <- KEGG_annot[sp_category_KEGG_annot_genes, ] -->
+  CAZy_families_annot_raw[[sp]] <- list()
 
-<!--     sp_category_KEGG_annot_modules <- KEGG_module_info[which(KEGG_module_info$KO %in% sp_category_KEGG_annot_KOs), "module"] -->
+  for (gene_category in c("cloud", "shell", "core")) {
 
-<!--     for (KEGG_module in unique_KEGG_modules) { -->
-<!--       KEGG_modules_annot_raw[[sp]][[gene_category]][KEGG_module, "num_genes"] <- length(grep(KEGG_module, sp_category_KEGG_annot_modules)) -->
-<!--     } -->
+    CAZy_families_annot_raw[[sp]][[gene_category]] <- data.frame(matrix(NA, nrow = nrow(CAZy_family_info), ncol = 5))
+    rownames(CAZy_families_annot_raw[[sp]][[gene_category]]) <- rownames(CAZy_family_info)
+    colnames(CAZy_families_annot_raw[[sp]][[gene_category]]) <- c("CAZy_family", "sp", "gene_category", "num_genes", "percent_CAZy_annot_genes")
+    CAZy_families_annot_raw[[sp]][[gene_category]]$CAZy_family <- CAZy_family_info$family
+    CAZy_families_annot_raw[[sp]][[gene_category]]$sp <- sp
 
-<!--     #KEGG_modules_annot_raw[[sp]][[gene_category]]["Unannotated", "num_genes"] <- length(gene_categories[[sp]][[gene_category]]) - length(sp_category_KEGG_annot_genes) -->
+    sp_category_CAZy_annot_genes <- gene_categories[[sp]][[gene_category]][which(gene_categories[[sp]][[gene_category]] %in% rownames(CAZy_annot))]
 
-<!--     KEGG_modules_annot_raw[[sp]][[gene_category]]$percent_KEGG_annot_genes <- (KEGG_modules_annot_raw[[sp]][[gene_category]]$num_genes / sum(KEGG_modules_annot_raw[[sp]][[gene_category]]$num_genes)) * 100 -->
+    CAZy_families_annot_raw[[sp]][[gene_category]]$gene_category <- gene_category
 
-<!--   } -->
+    if (length(sp_category_CAZy_annot_genes) == 0) { next }
 
-<!--   KEGG_modules_annot_raw_all_cat[[sp]] <- do.call(rbind, KEGG_modules_annot_raw[[sp]]) -->
-<!-- } -->
+    sp_category_CAZy_annot_categories <- CAZy_annot[sp_category_CAZy_annot_genes, ]
 
-<!-- KEGG_modules_annot <- do.call(rbind, KEGG_modules_annot_raw_all_cat) -->
+    for (CAZy_family in rownames(CAZy_family_info)) {
+      CAZy_families_annot_raw[[sp]][[gene_category]][CAZy_family, "num_genes"] <- length(grep(CAZy_family, sp_category_CAZy_annot_categories))
+    }
 
-<!-- KEGG_modules_annot$gene_category <- factor(KEGG_modules_annot$gene_category, levels = c("cloud", "shell", "core")) -->
+    CAZy_families_annot_raw[[sp]][[gene_category]]$percent_CAZy_annot_genes <- (CAZy_families_annot_raw[[sp]][[gene_category]]$num_genes / sum(CAZy_families_annot_raw[[sp]][[gene_category]]$num_genes)) * 100
 
-<!-- KEGG_module_max_percent <- c() -->
+  }
 
-<!-- for (KEGG_module in unique_KEGG_modules) { -->
-<!--   KEGG_module_max_percent <- c(KEGG_module_max_percent, mean(KEGG_modules_annot[which(KEGG_modules_annot$KEGG_module == KEGG_module), "percent_KEGG_annot_genes"], na.rm = TRUE)) -->
-<!-- } -->
+  CAZy_families_annot_raw_all_cat[[sp]] <- do.call(rbind, CAZy_families_annot_raw[[sp]])
+}
 
-<!-- names(KEGG_module_max_percent) <- unique_KEGG_modules -->
+CAZy_families_annot <- do.call(rbind, CAZy_families_annot_raw_all_cat)
 
-<!-- nonfocal_KEGG_modules <- names(sort(KEGG_module_max_percent, decreasing = TRUE))[16:length(KEGG_module_max_percent)] -->
+CAZy_families_annot$gene_category <- factor(CAZy_families_annot$gene_category, levels = c("cloud", "shell", "core"))
 
-<!-- KEGG_modules_annot$KEGG_module_descrip_to_plot <- KEGG_modules_annot$KEGG_module_descrip -->
+ggplot(data = CAZy_families_annot, aes(y = gene_category, x = percent_CAZy_annot_genes, fill = CAZy_family)) +
+        geom_bar(stat = "identity") +
+        facet_grid(sp ~ .) +
+        scale_fill_manual(values = c("grey90", "black", "brown", "light green", "blue", "yellow")) +
+        xlab("") +
+        ylab("% of CAZy-annotated genes") +
+        theme_bw() +
+        theme(strip.text.y.right = element_text(angle = 0))
+        
+```
 
-<!-- KEGG_modules_annot$KEGG_module_descrip_to_plot[which(KEGG_modules_annot$KEGG_module %in% nonfocal_KEGG_modules)] <- "Other modules" -->
 
+## KEGG {.tabset}
 
-<!-- ggplot(data = KEGG_modules_annot, aes(x = gene_category, y = percent_KEGG_annot_genes, fill = KEGG_module_descrip_to_plot)) + -->
-<!--         geom_bar(stat = "identity") + -->
-<!--         facet_grid(. ~ sp) + -->
-<!--         xlab("") + -->
-<!--         ylab("% of KEGG-annotated genes") + -->
-<!--         scale_fill_manual(values = distinct_21_colours[1:16]) + -->
-<!--         theme_bw() -->
-<!-- ``` -->
+### KEGG modules
 
+```{r KEGG_modules_sp_relabun_breakdown, fig.width = 10, fig.height = 12}
+KEGG_modules_annot_raw <- list()
+KEGG_modules_annot_raw_all_cat <- list()
 
-<!-- ### KEGG pathways -->
+KEGG_module_info <- read.table("/data1/gdouglas/db/KEGG_v101.0/2022_01_08_KEGG_ko_module_links.tsv.gz",
+                               header = FALSE, sep = "\t", stringsAsFactors = FALSE)
 
-<!-- ```{r KEGG_pathways_sp_relabun_breakdown, fig.width = 10, fig.height = 8} -->
-<!-- KEGG_pathways_annot_raw <- list() -->
-<!-- KEGG_pathways_annot_raw_all_cat <- list() -->
+KEGG_module_descrip <- read.table("/data1/gdouglas/db/KEGG_v101.0/2022_01_08_KEGG_module_descrip.tsv.gz",
+                                  header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+rownames(KEGG_module_descrip) <- gsub("md:", "", KEGG_module_descrip$V1)
+KEGG_module_descrip$descrip <- paste(rownames(KEGG_module_descrip) , KEGG_module_descrip$V2, sep = " - ")
 
-<!-- KEGG_pathway_info <- read.table("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_ko_pathway_links.tsv.gz", -->
-<!--                                header = FALSE, sep = "\t", stringsAsFactors = FALSE) -->
+KEGG_module_info$V1 <- gsub("ko:", "", KEGG_module_info$V1)
+KEGG_module_info$V2 <- gsub("md:", "", KEGG_module_info$V2)
+colnames(KEGG_module_info) <- c("KO", "module")
 
-<!-- KEGG_pathway_descrip <- read.table("/data1/gdouglas/db/KEGG_v100.0/2021_10_04_KEGG_pathway_descrip.tsv.gz", -->
-<!--                                   header = FALSE, sep = "\t", stringsAsFactors = FALSE) -->
-<!-- rownames(KEGG_pathway_descrip) <- gsub("path:map", "ko", KEGG_pathway_descrip$V1) -->
-<!-- KEGG_pathway_descrip$descrip <- paste(rownames(KEGG_pathway_descrip) , KEGG_pathway_descrip$V2, sep = " - ") -->
+unique_KEGG_modules <- names(table(KEGG_module_info$module))
 
-<!-- KEGG_pathway_info$V1 <- gsub("ko:", "", KEGG_pathway_info$V1) -->
-<!-- KEGG_pathway_info <- KEGG_pathway_info[-grep("path:map", KEGG_pathway_info$V2), ] -->
-<!-- KEGG_pathway_info$V2 <- gsub("path:", "", KEGG_pathway_info$V2) -->
-<!-- colnames(KEGG_pathway_info) <- c("KO", "pathway") -->
+for (sp in species) {
 
-<!-- unique_KEGG_pathways <- names(table(KEGG_pathway_info$pathway)) -->
+  KEGG_modules_annot_raw[[sp]] <- list()
 
-<!-- for (sp in species) { -->
+  for (gene_category in c("cloud", "shell", "core")) {
 
-<!--   KEGG_pathways_annot_raw[[sp]] <- list() -->
+    KEGG_modules_annot_raw[[sp]][[gene_category]] <- data.frame(matrix(NA, nrow = length(unique_KEGG_modules), ncol = 6))
+    rownames(KEGG_modules_annot_raw[[sp]][[gene_category]]) <- unique_KEGG_modules
+    colnames(KEGG_modules_annot_raw[[sp]][[gene_category]]) <- c("KEGG_module", "KEGG_module_descrip", "sp", "gene_category", "num_genes", "percent_KEGG_annot_genes")
+    KEGG_modules_annot_raw[[sp]][[gene_category]]$KEGG_module <- unique_KEGG_modules
+    KEGG_modules_annot_raw[[sp]][[gene_category]]$KEGG_module_descrip <- KEGG_module_descrip[unique_KEGG_modules, "descrip"]
+    KEGG_modules_annot_raw[[sp]][[gene_category]]$sp <- sp
 
-<!--   for (gene_category in c("cloud", "shell", "core")) { -->
+    sp_category_KEGG_annot_genes <- gene_categories[[sp]][[gene_category]][which(gene_categories[[sp]][[gene_category]] %in% rownames(KEGG_annot))]
 
-<!--     KEGG_pathways_annot_raw[[sp]][[gene_category]] <- data.frame(matrix(NA, nrow = length(unique_KEGG_pathways), ncol = 6)) -->
-<!--     rownames(KEGG_pathways_annot_raw[[sp]][[gene_category]]) <- unique_KEGG_pathways -->
-<!--     colnames(KEGG_pathways_annot_raw[[sp]][[gene_category]]) <- c("KEGG_pathway", "KEGG_pathway_descrip", "sp", "gene_category", "num_genes", "percent_KEGG_annot_genes") -->
-<!--     KEGG_pathways_annot_raw[[sp]][[gene_category]]$KEGG_pathway <- unique_KEGG_pathways -->
-<!--     KEGG_pathways_annot_raw[[sp]][[gene_category]]$KEGG_pathway_descrip <- KEGG_pathway_descrip[unique_KEGG_pathways, "descrip"] -->
-<!--     KEGG_pathways_annot_raw[[sp]][[gene_category]]$sp <- sp -->
+    KEGG_modules_annot_raw[[sp]][[gene_category]]$gene_category <- gene_category
 
-<!--     sp_category_KEGG_annot_genes <- gene_categories[[sp]][[gene_category]][which(gene_categories[[sp]][[gene_category]] %in% rownames(KEGG_annot))] -->
+    if (length(sp_category_KEGG_annot_genes) == 0) { next }
 
-<!--     KEGG_pathways_annot_raw[[sp]][[gene_category]]$gene_category <- gene_category -->
+    sp_category_KEGG_annot_KOs <- KEGG_annot[sp_category_KEGG_annot_genes, ]
 
-<!--     if (length(sp_category_KEGG_annot_genes) == 0) { next } -->
+    sp_category_KEGG_annot_modules <- KEGG_module_info[which(KEGG_module_info$KO %in% sp_category_KEGG_annot_KOs), "module"]
 
-<!--     sp_category_KEGG_annot_KOs <- KEGG_annot[sp_category_KEGG_annot_genes, ] -->
+    for (KEGG_module in unique_KEGG_modules) {
+      KEGG_modules_annot_raw[[sp]][[gene_category]][KEGG_module, "num_genes"] <- length(grep(KEGG_module, sp_category_KEGG_annot_modules))
+    }
 
-<!--     sp_category_KEGG_annot_pathways <- KEGG_pathway_info[which(KEGG_pathway_info$KO %in% sp_category_KEGG_annot_KOs), "pathway"] -->
+    #KEGG_modules_annot_raw[[sp]][[gene_category]]["Unannotated", "num_genes"] <- length(gene_categories[[sp]][[gene_category]]) - length(sp_category_KEGG_annot_genes)
 
-<!--     for (KEGG_pathway in unique_KEGG_pathways) { -->
-<!--       KEGG_pathways_annot_raw[[sp]][[gene_category]][KEGG_pathway, "num_genes"] <- length(grep(KEGG_pathway, sp_category_KEGG_annot_pathways)) -->
-<!--     } -->
+    KEGG_modules_annot_raw[[sp]][[gene_category]]$percent_KEGG_annot_genes <- (KEGG_modules_annot_raw[[sp]][[gene_category]]$num_genes / sum(KEGG_modules_annot_raw[[sp]][[gene_category]]$num_genes)) * 100
 
-<!--     #KEGG_pathways_annot_raw[[sp]][[gene_category]]["Unannotated", "num_genes"] <- length(gene_categories[[sp]][[gene_category]]) - length(sp_category_KEGG_annot_genes) -->
+  }
 
-<!--     KEGG_pathways_annot_raw[[sp]][[gene_category]]$percent_KEGG_annot_genes <- (KEGG_pathways_annot_raw[[sp]][[gene_category]]$num_genes / sum(KEGG_pathways_annot_raw[[sp]][[gene_category]]$num_genes)) * 100 -->
+  KEGG_modules_annot_raw_all_cat[[sp]] <- do.call(rbind, KEGG_modules_annot_raw[[sp]])
+}
 
-<!--   } -->
+KEGG_modules_annot <- do.call(rbind, KEGG_modules_annot_raw_all_cat)
 
-<!--   KEGG_pathways_annot_raw_all_cat[[sp]] <- do.call(rbind, KEGG_pathways_annot_raw[[sp]]) -->
-<!-- } -->
+KEGG_modules_annot$gene_category <- factor(KEGG_modules_annot$gene_category, levels = c("cloud", "shell", "core"))
 
-<!-- KEGG_pathways_annot <- do.call(rbind, KEGG_pathways_annot_raw_all_cat) -->
+KEGG_module_max_percent <- c()
 
-<!-- KEGG_pathways_annot$gene_category <- factor(KEGG_pathways_annot$gene_category, levels = c("cloud", "shell", "core")) -->
+for (KEGG_module in unique_KEGG_modules) {
+  KEGG_module_max_percent <- c(KEGG_module_max_percent, mean(KEGG_modules_annot[which(KEGG_modules_annot$KEGG_module == KEGG_module), "percent_KEGG_annot_genes"], na.rm = TRUE))
+}
 
-<!-- KEGG_pathway_max_percent <- c() -->
+names(KEGG_module_max_percent) <- unique_KEGG_modules
 
-<!-- for (KEGG_pathway in unique_KEGG_pathways) { -->
-<!--   KEGG_pathway_max_percent <- c(KEGG_pathway_max_percent, mean(KEGG_pathways_annot[which(KEGG_pathways_annot$KEGG_pathway == KEGG_pathway), "percent_KEGG_annot_genes"], na.rm = TRUE)) -->
-<!-- } -->
+nonfocal_KEGG_modules <- names(sort(KEGG_module_max_percent, decreasing = TRUE))[16:length(KEGG_module_max_percent)]
 
-<!-- names(KEGG_pathway_max_percent) <- unique_KEGG_pathways -->
+KEGG_modules_annot$KEGG_module_descrip_to_plot <- KEGG_modules_annot$KEGG_module_descrip
 
-<!-- nonfocal_KEGG_pathways <- names(sort(KEGG_pathway_max_percent, decreasing = TRUE))[16:length(KEGG_pathway_max_percent)] -->
+KEGG_modules_annot$KEGG_module_descrip_to_plot[which(KEGG_modules_annot$KEGG_module %in% nonfocal_KEGG_modules)] <- "Other modules"
 
-<!-- KEGG_pathways_annot$KEGG_pathway_descrip_to_plot <- KEGG_pathways_annot$KEGG_pathway_descrip -->
 
-<!-- KEGG_pathways_annot$KEGG_pathway_descrip_to_plot[which(KEGG_pathways_annot$KEGG_pathway %in% nonfocal_KEGG_pathways)] <- "Other pathways" -->
+ggplot(data = KEGG_modules_annot, aes(y = gene_category, x = percent_KEGG_annot_genes, fill = KEGG_module_descrip_to_plot)) +
+        geom_bar(stat = "identity") +
+        facet_grid(sp ~ .) +
+        xlab("") +
+        ylab("% of KEGG-annotated genes") +
+        scale_fill_manual(values = distinct_21_colours[1:16]) +
+        theme_bw() +
+        theme(strip.text.y.right = element_text(angle = 0))
+```
 
 
-<!-- ggplot(data = KEGG_pathways_annot, aes(x = gene_category, y = percent_KEGG_annot_genes, fill = KEGG_pathway_descrip_to_plot)) + -->
-<!--         geom_bar(stat = "identity") + -->
-<!--         facet_grid(. ~ sp) + -->
-<!--         xlab("") + -->
-<!--         ylab("% of KEGG-annotated genes") + -->
-<!--         scale_fill_manual(values = distinct_21_colours[1:16]) + -->
-<!--         theme_bw() -->
-<!-- ``` -->
+### KEGG pathways
+
+```{r KEGG_pathways_sp_relabun_breakdown, fig.width = 10, fig.height = 12}
+KEGG_pathways_annot_raw <- list()
+KEGG_pathways_annot_raw_all_cat <- list()
+
+KEGG_pathway_info <- read.table("/data1/gdouglas/db/KEGG_v101.0/2022_01_08_KEGG_ko_pathway_links.tsv.gz",
+                               header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+
+KEGG_pathway_descrip <- read.table("/data1/gdouglas/db/KEGG_v101.0/2022_01_08_KEGG_pathway_descrip.tsv.gz",
+                                  header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+rownames(KEGG_pathway_descrip) <- gsub("path:map", "ko", KEGG_pathway_descrip$V1)
+KEGG_pathway_descrip$descrip <- paste(rownames(KEGG_pathway_descrip) , KEGG_pathway_descrip$V2, sep = " - ")
+
+KEGG_pathway_info$V1 <- gsub("ko:", "", KEGG_pathway_info$V1)
+KEGG_pathway_info$V2 <- gsub("path:map", "ko", KEGG_pathway_info$V2)
+KEGG_pathway_info <- KEGG_pathway_info[-grep("path", KEGG_pathway_info$V2), ]
+
+colnames(KEGG_pathway_info) <- c("KO", "pathway")
+
+unique_KEGG_pathways <- names(table(KEGG_pathway_info$pathway))
+
+for (sp in species) {
+
+  KEGG_pathways_annot_raw[[sp]] <- list()
+
+  for (gene_category in c("cloud", "shell", "core")) {
+
+    KEGG_pathways_annot_raw[[sp]][[gene_category]] <- data.frame(matrix(NA, nrow = length(unique_KEGG_pathways), ncol = 6))
+    rownames(KEGG_pathways_annot_raw[[sp]][[gene_category]]) <- unique_KEGG_pathways
+    colnames(KEGG_pathways_annot_raw[[sp]][[gene_category]]) <- c("KEGG_pathway", "KEGG_pathway_descrip", "sp", "gene_category", "num_genes", "percent_KEGG_annot_genes")
+    KEGG_pathways_annot_raw[[sp]][[gene_category]]$KEGG_pathway <- unique_KEGG_pathways
+    KEGG_pathways_annot_raw[[sp]][[gene_category]]$KEGG_pathway_descrip <- KEGG_pathway_descrip[unique_KEGG_pathways, "descrip"]
+    KEGG_pathways_annot_raw[[sp]][[gene_category]]$sp <- sp
+
+    sp_category_KEGG_annot_genes <- gene_categories[[sp]][[gene_category]][which(gene_categories[[sp]][[gene_category]] %in% rownames(KEGG_annot))]
+
+    KEGG_pathways_annot_raw[[sp]][[gene_category]]$gene_category <- gene_category
+
+    if (length(sp_category_KEGG_annot_genes) == 0) { next }
+
+    sp_category_KEGG_annot_KOs <- KEGG_annot[sp_category_KEGG_annot_genes, ]
+
+    sp_category_KEGG_annot_pathways <- KEGG_pathway_info[which(KEGG_pathway_info$KO %in% sp_category_KEGG_annot_KOs), "pathway"]
+
+    for (KEGG_pathway in unique_KEGG_pathways) {
+      KEGG_pathways_annot_raw[[sp]][[gene_category]][KEGG_pathway, "num_genes"] <- length(grep(KEGG_pathway, sp_category_KEGG_annot_pathways))
+    }
+
+    #KEGG_pathways_annot_raw[[sp]][[gene_category]]["Unannotated", "num_genes"] <- length(gene_categories[[sp]][[gene_category]]) - length(sp_category_KEGG_annot_genes)
+
+    KEGG_pathways_annot_raw[[sp]][[gene_category]]$percent_KEGG_annot_genes <- (KEGG_pathways_annot_raw[[sp]][[gene_category]]$num_genes / sum(KEGG_pathways_annot_raw[[sp]][[gene_category]]$num_genes)) * 100
+
+  }
+
+  KEGG_pathways_annot_raw_all_cat[[sp]] <- do.call(rbind, KEGG_pathways_annot_raw[[sp]])
+}
+
+KEGG_pathways_annot <- do.call(rbind, KEGG_pathways_annot_raw_all_cat)
+
+KEGG_pathways_annot$gene_category <- factor(KEGG_pathways_annot$gene_category, levels = c("cloud", "shell", "core"))
+
+KEGG_pathway_max_percent <- c()
+
+for (KEGG_pathway in unique_KEGG_pathways) {
+  KEGG_pathway_max_percent <- c(KEGG_pathway_max_percent, mean(KEGG_pathways_annot[which(KEGG_pathways_annot$KEGG_pathway == KEGG_pathway), "percent_KEGG_annot_genes"], na.rm = TRUE))
+}
+
+names(KEGG_pathway_max_percent) <- unique_KEGG_pathways
+
+nonfocal_KEGG_pathways <- names(sort(KEGG_pathway_max_percent, decreasing = TRUE))[16:length(KEGG_pathway_max_percent)]
+
+KEGG_pathways_annot$KEGG_pathway_descrip_to_plot <- KEGG_pathways_annot$KEGG_pathway_descrip
+
+KEGG_pathways_annot$KEGG_pathway_descrip_to_plot[which(KEGG_pathways_annot$KEGG_pathway %in% nonfocal_KEGG_pathways)] <- "Other pathways"
+
+
+ggplot(data = KEGG_pathways_annot, aes(y = gene_category, x = percent_KEGG_annot_genes, fill = KEGG_pathway_descrip_to_plot)) +
+        geom_bar(stat = "identity") +
+        facet_grid(sp ~ .) +
+        xlab("") +
+        ylab("% of KEGG-annotated genes") +
+        scale_fill_manual(values = distinct_21_colours[1:16]) +
+        theme_bw() +
+        theme(strip.text.y.right = element_text(angle = 0))
+```
+
+
+
+## COG categories
+
+```{r COG_category_sp_relabun_breakdown, fig.width = 10, fig.height = 12}
+COG_category_annot_raw <- list()
+COG_category_annot_raw_all_cat <- list()
+
+COG_category_info <- read.table("/data1/gdouglas/db/COG_definitions/cog-20.to_category.tsv",
+                               header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+
+COG_category_descrip <- read.table("/data1/gdouglas/db/COG_definitions/COG_category_descrip.tsv",
+                                  header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
+COG_category_descrip$descrip <- paste(rownames(COG_category_descrip) , COG_category_descrip$V2, sep = " - ")
+
+colnames(COG_category_info) <- c("COG", "category")
+
+unique_COG_category <- names(table(COG_category_info$category))
+
+for (sp in species) {
+
+  COG_category_annot_raw[[sp]] <- list()
+
+  for (gene_category in c("cloud", "shell", "core")) {
+
+    COG_category_annot_raw[[sp]][[gene_category]] <- data.frame(matrix(NA, nrow = length(unique_COG_category), ncol = 6))
+    rownames(COG_category_annot_raw[[sp]][[gene_category]]) <- unique_COG_category
+    colnames(COG_category_annot_raw[[sp]][[gene_category]]) <- c("COG_category", "COG_category_descrip", "sp", "gene_category", "num_genes", "percent_COG_annot_genes")
+    COG_category_annot_raw[[sp]][[gene_category]]$COG_category <- unique_COG_category
+    COG_category_annot_raw[[sp]][[gene_category]]$COG_category_descrip <- COG_category_descrip[unique_COG_category, "descrip"]
+    COG_category_annot_raw[[sp]][[gene_category]]$sp <- sp
+
+    sp_category_COG_annot_genes <- gene_categories[[sp]][[gene_category]][which(gene_categories[[sp]][[gene_category]] %in% rownames(COG_annot))]
+
+    COG_category_annot_raw[[sp]][[gene_category]]$gene_category <- gene_category
+
+    if (length(sp_category_COG_annot_genes) == 0) { next }
+
+    sp_category_COG_annot_categories <- as.character(COG_annot[sp_category_COG_annot_genes, ])
+
+    for (COG_category in unique_COG_category) {
+      COG_category_annot_raw[[sp]][[gene_category]][COG_category, "num_genes"] <- length(grep(COG_category, sp_category_COG_annot_categories))
+    }
+
+    #COG_category_annot_raw[[sp]][[gene_category]]["Unannotated", "num_genes"] <- length(gene_categories[[sp]][[gene_category]]) - length(sp_category_COG_annot_genes)
+
+    COG_category_annot_raw[[sp]][[gene_category]]$percent_COG_annot_genes <- (COG_category_annot_raw[[sp]][[gene_category]]$num_genes / sum(COG_category_annot_raw[[sp]][[gene_category]]$num_genes)) * 100
+
+  }
+
+  COG_category_annot_raw_all_cat[[sp]] <- do.call(rbind, COG_category_annot_raw[[sp]])
+}
+
+COG_category_annot <- do.call(rbind, COG_category_annot_raw_all_cat)
+
+COG_category_annot$gene_category <- factor(COG_category_annot$gene_category, levels = c("cloud", "shell", "core"))
+
+COG_category_max_percent <- c()
+
+for (COG_category in unique_COG_category) {
+  COG_category_max_percent <- c(COG_category_max_percent, mean(COG_category_annot[which(COG_category_annot$COG_category == COG_category), "percent_COG_annot_genes"], na.rm = TRUE))
+}
+
+names(COG_category_max_percent) <- unique_COG_category
+
+nonfocal_COG_category <- names(sort(COG_category_max_percent, decreasing = TRUE))[16:length(COG_category_max_percent)]
+
+COG_category_annot$COG_category_descrip_to_plot <- COG_category_annot$COG_category_descrip
+
+COG_category_annot$COG_category_descrip_to_plot[which(COG_category_annot$COG_category %in% nonfocal_COG_category)] <- "Other categories"
+
+
+ggplot(data = COG_category_annot, aes(y = gene_category, x = percent_COG_annot_genes, fill = COG_category_descrip_to_plot)) +
+        geom_bar(stat = "identity") +
+        facet_grid(sp ~ .) +
+        xlab("") +
+        ylab("% of COG-annotated genes") +
+        scale_fill_manual(values = distinct_21_colours[1:16]) +
+        theme_bw() +
+        theme(strip.text.y.right = element_text(angle = 0))
+```
