@@ -92,13 +92,13 @@ def main():
     for gene in genes:
 
         try:
-            tmp = vcf_reader.fetch(gene + ".fa")
+            tmp = vcf_reader.fetch(gene)
         except:
             continue
 
-        for record in vcf_reader.fetch(gene + ".fa"):
+        for record in vcf_reader.fetch(gene):
             
-            scaffold = record.CHROM.replace(".fa", "")
+            scaffold = record.CHROM
 
             total_intersecting_sites += 1
 
@@ -150,8 +150,9 @@ def main():
 
             num_alleles = len(alleles)
 
-            #if num_alleles == 1 and alleles[0] == record.REF:
-            #    continue
+            # Skip if the only allele left is the reference allele.
+            if num_alleles == 1 and alleles[0] == record.REF:
+                continue
 
             if structural:
 
