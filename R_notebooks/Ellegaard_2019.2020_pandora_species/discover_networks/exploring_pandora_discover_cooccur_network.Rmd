@@ -1,0 +1,1042 @@
+---
+title: "Explore pandora species-level co-occur network"
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+
+```{r setup}
+suppressMessages(library("reshape2"))
+suppressMessages(library("ggnetwork"))
+suppressMessages(library("igraph"))
+suppressMessages(library("kableExtra"))
+suppressMessages(library("knitr"))
+suppressMessages(library("DT"))
+
+compute_unnorm_expected_prop <- function(tested_genes, species1, species2) {
+
+    species1_prop <- length(grep(species1, tested_genes)) / length(tested_genes)
+    species2_prop <- length(grep(species2, tested_genes)) / length(tested_genes)
+  
+    return(species1_prop * species2_prop)
+}
+```
+
+```{r read_cog_categories}
+COG_map <- read.table("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/eggNOG_output/all_microbiota_COG.category_by_ortholog.tsv",
+                      header = FALSE, sep = "\t", stringsAsFactors = FALSE, row.names = 1)
+
+COG_descrip <- read.table("/data1/gdouglas/db/COG_definitions/COG_category_descrip.tsv",
+                          header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+
+identify_enriched_COG_categories <- function(genes, background, COG_mapfile=COG_map, COG_descriptions=COG_descrip) {
+  
+  gene_COGs <- COG_map[genes, "V2"]
+  
+  background_COGs <- COG_map[background, "V2"]
+  
+  COG_enrichments <- data.frame(matrix(NA, nrow = length(COG_descriptions$V1), ncol = 8))
+  rownames(COG_enrichments) <- COG_descriptions$V1
+  colnames(COG_enrichments) <- c("description", "genes_num_COG", "genes_num_other", "background_num_COG", "background_num_other", "OR", "p", "fdr")
+  
+  COG_enrichments[COG_descriptions$V1, "description"] <- COG_descriptions$V2
+  
+  for (category in COG_descriptions$V1) {
+    
+    genes_num_COG <- length(grep(category, gene_COGs))
+    genes_num_other <- length(grep(category, gene_COGs, invert = TRUE))
+    background_num_COG <- length(grep(category, background_COGs))
+    background_num_other <- length(grep(category, background_COGs, invert = TRUE))
+    
+    COG_count_table <- matrix(c(genes_num_COG, genes_num_other, background_num_COG, background_num_other), nrow = 2, ncol = 2)
+    
+    COG_fisher_out <- fisher.test(COG_count_table)
+    
+    COG_enrichments[category, c("genes_num_COG", "genes_num_other", "background_num_COG", "background_num_other", "OR", "p")] <- c(genes_num_COG, genes_num_other, background_num_COG, background_num_other, COG_fisher_out$estimate, COG_fisher_out$p.value)
+    
+  }
+  
+  COG_enrichments$fdr <- p.adjust(COG_enrichments$p, "fdr")
+  
+  return(COG_enrichments)
+  
+}
+```
+
+```{r species}
+species <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/mapfiles/species.txt", stringsAsFactors = FALSE)$V1
+```
+
+# Co-occurrence
+
+## Preprocess data
+
+```{r read_in_data_cooccur}
+discover_output_cooccur <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_cooccur_results_clustered_DBH0.35.rds")
+
+panaroo_out <- readRDS("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/highqual_genomes_panaroo/combined_panaroo_annot.rds")
+
+num_samples <- 74
+```
+
+```{r prep_full_network_cooccur}
+net_cooccur <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_cooccur_results_clustered_DBH0.35_net.rds")
+```
+
+## Total associations and genes
+
+```{r num_total_genes_cooccur}
+total_genes_cooccur <- c(discover_output_cooccur$gene1, discover_output_cooccur$gene2)
+total_genes_cooccur <- total_genes_cooccur[-which(duplicated(total_genes_cooccur))]
+```
+There are `r nrow(discover_output_cooccur)` associations (at q < 0.3) in total based on `r length(total_genes_cooccur)` unique genes.
+
+
+## Centrality metrics {.tabset}
+Only looked at edge degrees and betweenness centrality, because others I looked at were redundant or made no sense for unconnected graphs.
+
+```{r compute_centrality_metrics_cooccur}
+net_cooccur_degree <- degree(net_cooccur)
+net_cooccur_betweenness <- betweenness(net_cooccur)
+
+```
+
+
+### Edge degree
+```{r degree_histogram_cooccur}
+hist(net_cooccur_degree)
+```
+
+Top 10 nodes by degree:
+```{r degree_top10_cooccur}
+head(panaroo_out[names(sort(net_cooccur_degree, decreasing = TRUE)), "Annotation"], 10)
+```
+
+### Betweenness centrality
+```{r betweenness_histogram_cooccur}
+hist(net_cooccur_betweenness)
+```
+
+Top 10 nodes by betweenness:
+```{r betweenness_top10_cooccur}
+head(panaroo_out[names(sort(net_cooccur_betweenness, decreasing = TRUE)), "Annotation"], 10)
+```
+
+
+## Network graph
+With all associations at discrete BH (DBH) < 0.35.
+
+```{r full_graph_cooccur}
+net_cooccur_flattened <- ggnetwork(net_cooccur)
+
+ggplot(net_cooccur_flattened, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_edges() +
+  geom_nodes(aes(color = species), size = 3) +
+  theme_blank()
+```
+
+## Cross-species associations
+
+```{r crossspecies_tally_cooccur}
+discover_output_cooccur$species1 <- NA
+discover_output_cooccur$species2 <- NA
+
+for (sp in species) {
+  
+  if (length(grep(sp, discover_output_cooccur$gene1)) > 0) {
+    discover_output_cooccur[grep(sp, discover_output_cooccur$gene1), "species1"] <- sp
+  }
+  
+  if (length(grep(sp, discover_output_cooccur$gene2)) > 0) {
+    discover_output_cooccur[grep(sp, discover_output_cooccur$gene2), "species2"] <- sp
+  }
+}
+
+
+discover_output_cooccur_cross <- discover_output_cooccur[which(discover_output_cooccur$species1 != discover_output_cooccur$species2), ]
+
+total_cross_genes_cooccur <- c(discover_output_cooccur_cross$gene1, discover_output_cooccur_cross$gene2)
+total_cross_genes_cooccur <- total_cross_genes_cooccur[-which(duplicated(total_cross_genes_cooccur))]
+
+cross_gene_annot_cooccur <- panaroo_out[total_cross_genes_cooccur, "Annotation"]
+
+discover_output_cooccur_cross$annot1 <- panaroo_out[discover_output_cooccur_cross$gene1, "Annotation"]
+discover_output_cooccur_cross$annot2 <- panaroo_out[discover_output_cooccur_cross$gene2, "Annotation"]
+
+write.table(x = discover_output_cooccur_cross,
+            file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_cooccur_results_clustered_DBH0.3_cross_species.tsv",
+            sep = "\t",
+            quote = FALSE,
+            col.names = TRUE,
+            row.names = FALSE)
+```
+
+There are `r nrow(discover_output_cooccur_cross)` cross-species associations (at q < 0.3) in total based on `r length(total_cross_genes_cooccur)` unique genes.
+
+
+### Breakdown of cross-species associations
+
+```{r crossphylo_tally_breakdown_cooccur}
+cross_species_instances_cooccur <- c()
+
+for (i in 1:nrow(discover_output_cooccur_cross)) {
+  rep_species <- sort(c(discover_output_cooccur_cross$species1[i], discover_output_cooccur_cross$species2[i]))
+  cross_species_instances_cooccur <- c(cross_species_instances_cooccur, paste(rep_species, collapse = "_"))
+}
+
+tested_genes <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_tested_genes.rds")
+tested_genes <- names(tested_genes[which(tested_genes)])
+
+network_genes_only <- total_genes_cooccur
+
+
+
+crossphylo_summary_cooccur <- data.frame(matrix(NA, nrow = 0, ncol = 4))
+colnames(crossphylo_summary_cooccur) <- c("species_group", "observed", "unnorm_expected_prop", "unnorm_expected_prop_sig_genes")
+
+species_present <- species[which(species %in% unique(c(discover_output_cooccur_cross$species1, discover_output_cooccur_cross$species2)))]
+
+row_i <- 1
+
+for (p1 in species_present) {
+ 
+  other_species <- species_present[-c(1:which(species_present == p1))]
+  
+  if (length(other_species) == 0) { break }
+  
+  for (p2 in other_species) {
+    
+    crossphylo_summary_cooccur[row_i, "species_group"] <- paste(sort(c(p1, p2)), collapse = " - ")
+    
+    crossphylo_summary_cooccur[row_i, "observed"] <- length(which(cross_species_instances_cooccur == paste(sort(c(p1, p2)), collapse = "_")))
+
+    crossphylo_summary_cooccur[row_i, "unnorm_expected_prop_all_genes"] <- compute_unnorm_expected_prop(tested_genes = tested_genes,
+                                                                                                        species1 = p1,
+                                                                                                        species2 = p2)
+
+    crossphylo_summary_cooccur[row_i, "unnorm_expected_prop_sig_genes"] <- compute_unnorm_expected_prop(tested_genes = network_genes_only,
+                                                                                                        species1 = p1,
+                                                                                                        species2 = p2)
+  
+    row_i <- row_i + 1
+  }
+}
+
+crossphylo_summary_cooccur$expected_all_prop <- crossphylo_summary_cooccur$unnorm_expected_prop_all_genes / sum(crossphylo_summary_cooccur$unnorm_expected_prop_all_genes)
+crossphylo_summary_cooccur$expected_all_genes <- crossphylo_summary_cooccur$expected_all_prop * nrow(discover_output_cooccur_cross)
+
+crossphylo_summary_cooccur$expected_sig_prop <- crossphylo_summary_cooccur$unnorm_expected_prop_sig_genes / sum(crossphylo_summary_cooccur$unnorm_expected_prop_sig_genes)
+crossphylo_summary_cooccur$expected_sig_genes <- crossphylo_summary_cooccur$expected_sig_prop * nrow(discover_output_cooccur_cross)
+
+crossphylo_summary_cooccur_melt <- melt(crossphylo_summary_cooccur[, c("species_group", "observed", "expected_all_genes", "expected_sig_genes")], id = "species_group", variable.name = "count_type")
+```
+
+```{r crossphylo_tally_breakdown_cooccur_plot, fig.height=10, fig.width=12}
+ggplot(data = crossphylo_summary_cooccur_melt, aes(y = species_group, x = value, colour = count_type)) +
+  geom_point(size = 2) +
+  xlab("Number of associations") +
+  scale_y_discrete(limits = rev(levels(as.factor(crossphylo_summary_cooccur_melt$species_group)))) +
+  scale_colour_manual(values = c("green", "black", "brown"))
+```
+
+
+### Functional enrichments of cross-species hits {.tabset}
+
+#### Bifidobacterium_asteroides - Bombilactobacillus_mellis {.tabset}
+
+##### Bifidobacterium_asteroides
+
+```{r Bifidobacterium_asteroides_Bombilactobacillus_mellis_cooccur_tab1}
+Bifidobacterium_asteroides_Bombilactobacillus_mellis_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Bifidobacterium_asteroides_Bombilactobacillus_mellis"), ]
+
+Bifidobacterium_asteroides_Bombilactobacillus_mellis_genes <- c(Bifidobacterium_asteroides_Bombilactobacillus_mellis_subset$gene1, Bifidobacterium_asteroides_Bombilactobacillus_mellis_subset$gene2)
+
+Bifidobacterium_asteroides_genes <- grep("Bifidobacterium_asteroides", Bifidobacterium_asteroides_Bombilactobacillus_mellis_genes, value = TRUE)
+
+
+Bifidobacterium_asteroides_genes_enriched <- identify_enriched_COG_categories(genes = Bifidobacterium_asteroides_genes,
+                                                                              background = grep("Bifidobacterium_asteroides", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Bifidobacterium_asteroides_genes_enriched$fdr < 0.05)) > 0) {
+  Bifidobacterium_asteroides_genes_enriched <- Bifidobacterium_asteroides_genes_enriched[which(Bifidobacterium_asteroides_genes_enriched$fdr < 0.05), ]
+
+  datatable(Bifidobacterium_asteroides_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+##### Bombilactobacillus_mellis
+
+```{r Bifidobacterium_asteroides_Bombilactobacillus_mellis_cooccur_tab2}
+Bifidobacterium_asteroides_Bombilactobacillus_mellis_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Bifidobacterium_asteroides_Bombilactobacillus_mellis"), ]
+
+Bifidobacterium_asteroides_Bombilactobacillus_mellis_genes <- c(Bifidobacterium_asteroides_Bombilactobacillus_mellis_subset$gene1, Bifidobacterium_asteroides_Bombilactobacillus_mellis_subset$gene2)
+
+Bombilactobacillus_mellis_genes <- grep("Bombilactobacillus_mellis", Bifidobacterium_asteroides_Bombilactobacillus_mellis_genes, value = TRUE)
+
+
+Bombilactobacillus_mellis_genes_enriched <- identify_enriched_COG_categories(genes = Bombilactobacillus_mellis_genes,
+                                                                              background = grep("Bombilactobacillus_mellis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Bombilactobacillus_mellis_genes_enriched$fdr < 0.05)) > 0) {
+  Bombilactobacillus_mellis_genes_enriched <- Bombilactobacillus_mellis_genes_enriched[which(Bombilactobacillus_mellis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Bombilactobacillus_mellis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+#### Bombilactobacillus_mellis - Gilliamella_apicola {.tabset}
+
+##### Bombilactobacillus_mellis
+
+```{r Bombilactobacillus_mellis_Gilliamella_apicola_cooccur_tab1}
+Bombilactobacillus_mellis_Gilliamella_apicola_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Bombilactobacillus_mellis_Gilliamella_apicola"), ]
+
+Bombilactobacillus_mellis_Gilliamella_apicola_genes <- c(Bombilactobacillus_mellis_Gilliamella_apicola_subset$gene1, Bombilactobacillus_mellis_Gilliamella_apicola_subset$gene2)
+
+Bombilactobacillus_mellis_genes <- grep("Bombilactobacillus_mellis", Bombilactobacillus_mellis_Gilliamella_apicola_genes, value = TRUE)
+
+
+Bombilactobacillus_mellis_genes_enriched <- identify_enriched_COG_categories(genes = Bombilactobacillus_mellis_genes,
+                                                                              background = grep("Bombilactobacillus_mellis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Bombilactobacillus_mellis_genes_enriched$fdr < 0.05)) > 0) {
+  Bombilactobacillus_mellis_genes_enriched <- Bombilactobacillus_mellis_genes_enriched[which(Bombilactobacillus_mellis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Bombilactobacillus_mellis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+##### Gilliamella_apicola
+
+```{r Bombilactobacillus_mellis_Gilliamella_apicola_cooccur_tab2}
+Bombilactobacillus_mellis_Gilliamella_apicola_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Bombilactobacillus_mellis_Gilliamella_apicola"), ]
+
+Bombilactobacillus_mellis_Gilliamella_apicola_genes <- c(Bombilactobacillus_mellis_Gilliamella_apicola_subset$gene1, Bombilactobacillus_mellis_Gilliamella_apicola_subset$gene2)
+
+Gilliamella_apicola_genes <- grep("Gilliamella_apicola", Bombilactobacillus_mellis_Gilliamella_apicola_genes, value = TRUE)
+
+
+Gilliamella_apicola_genes_enriched <- identify_enriched_COG_categories(genes = Gilliamella_apicola_genes,
+                                                                              background = grep("Gilliamella_apicola", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Gilliamella_apicola_genes_enriched$fdr < 0.05)) > 0) {
+  Gilliamella_apicola_genes_enriched <- Gilliamella_apicola_genes_enriched[which(Gilliamella_apicola_genes_enriched$fdr < 0.05), ]
+
+  datatable(Gilliamella_apicola_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+
+#### Gilliamella_apicola - Snodgrassella_alvi {.tabset}
+
+##### Gilliamella_apicola
+
+```{r Gilliamella_apicola_Snodgrassella_alvi_cooccur_tab1}
+Gilliamella_apicola_Snodgrassella_alvi_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Gilliamella_apicola_Snodgrassella_alvi"), ]
+
+Gilliamella_apicola_Snodgrassella_alvi_genes <- c(Gilliamella_apicola_Snodgrassella_alvi_subset$gene1, Gilliamella_apicola_Snodgrassella_alvi_subset$gene2)
+
+Gilliamella_apicola_genes <- grep("Gilliamella_apicola", Gilliamella_apicola_Snodgrassella_alvi_genes, value = TRUE)
+
+
+Gilliamella_apicola_genes_enriched <- identify_enriched_COG_categories(genes = Gilliamella_apicola_genes,
+                                                                              background = grep("Gilliamella_apicola", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Gilliamella_apicola_genes_enriched$fdr < 0.05)) > 0) {
+  Gilliamella_apicola_genes_enriched <- Gilliamella_apicola_genes_enriched[which(Gilliamella_apicola_genes_enriched$fdr < 0.05), ]
+
+  datatable(Gilliamella_apicola_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+##### Snodgrassella_alvi
+
+```{r Gilliamella_apicola_Snodgrassella_alvi_cooccur_tab2}
+Gilliamella_apicola_Snodgrassella_alvi_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Gilliamella_apicola_Snodgrassella_alvi"), ]
+
+Gilliamella_apicola_Snodgrassella_alvi_genes <- c(Gilliamella_apicola_Snodgrassella_alvi_subset$gene1, Gilliamella_apicola_Snodgrassella_alvi_subset$gene2)
+
+Snodgrassella_alvi_genes <- grep("Snodgrassella_alvi", Gilliamella_apicola_Snodgrassella_alvi_genes, value = TRUE)
+
+
+Snodgrassella_alvi_genes_enriched <- identify_enriched_COG_categories(genes = Snodgrassella_alvi_genes,
+                                                                              background = grep("Snodgrassella_alvi", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Snodgrassella_alvi_genes_enriched$fdr < 0.05)) > 0) {
+  Snodgrassella_alvi_genes_enriched <- Snodgrassella_alvi_genes_enriched[which(Snodgrassella_alvi_genes_enriched$fdr < 0.05), ]
+
+  datatable(Snodgrassella_alvi_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+#### Lactobacillus_apis - Snodgrassella_alvi {.tabset}
+
+##### Lactobacillus_apis
+
+```{r Lactobacillus_apis_Snodgrassella_alvi_cooccur_tab1}
+Lactobacillus_apis_Snodgrassella_alvi_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Lactobacillus_apis_Snodgrassella_alvi"), ]
+
+Lactobacillus_apis_Snodgrassella_alvi_genes <- c(Lactobacillus_apis_Snodgrassella_alvi_subset$gene1, Lactobacillus_apis_Snodgrassella_alvi_subset$gene2)
+
+Lactobacillus_apis_genes <- grep("Lactobacillus_apis", Lactobacillus_apis_Snodgrassella_alvi_genes, value = TRUE)
+
+
+Lactobacillus_apis_genes_enriched <- identify_enriched_COG_categories(genes = Lactobacillus_apis_genes,
+                                                                              background = grep("Lactobacillus_apis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Lactobacillus_apis_genes_enriched$fdr < 0.05)) > 0) {
+  Lactobacillus_apis_genes_enriched <- Lactobacillus_apis_genes_enriched[which(Lactobacillus_apis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Lactobacillus_apis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+##### Snodgrassella_alvi
+
+```{r Lactobacillus_apis_Snodgrassella_alvi_cooccur_tab2}
+Lactobacillus_apis_Snodgrassella_alvi_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Lactobacillus_apis_Snodgrassella_alvi"), ]
+
+Lactobacillus_apis_Snodgrassella_alvi_genes <- c(Lactobacillus_apis_Snodgrassella_alvi_subset$gene1, Lactobacillus_apis_Snodgrassella_alvi_subset$gene2)
+
+Snodgrassella_alvi_genes <- grep("Snodgrassella_alvi", Lactobacillus_apis_Snodgrassella_alvi_genes, value = TRUE)
+
+
+Snodgrassella_alvi_genes_enriched <- identify_enriched_COG_categories(genes = Snodgrassella_alvi_genes,
+                                                                              background = grep("Snodgrassella_alvi", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Snodgrassella_alvi_genes_enriched$fdr < 0.05)) > 0) {
+  Snodgrassella_alvi_genes_enriched <- Snodgrassella_alvi_genes_enriched[which(Snodgrassella_alvi_genes_enriched$fdr < 0.05), ]
+
+  datatable(Snodgrassella_alvi_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+
+#### Lactobacillus_helsingborgensis - Lactobacillus_kullabergensis {.tabset}
+
+##### Lactobacillus_helsingborgensis
+
+```{r Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_cooccur_tab1}
+Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis"), ]
+
+Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_genes <- c(Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_subset$gene1, Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_subset$gene2)
+
+Lactobacillus_helsingborgensis_genes <- grep("Lactobacillus_helsingborgensis", Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_genes, value = TRUE)
+
+
+Lactobacillus_helsingborgensis_genes_enriched <- identify_enriched_COG_categories(genes = Lactobacillus_helsingborgensis_genes,
+                                                                              background = grep("Lactobacillus_helsingborgensis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Lactobacillus_helsingborgensis_genes_enriched$fdr < 0.05)) > 0) {
+  Lactobacillus_helsingborgensis_genes_enriched <- Lactobacillus_helsingborgensis_genes_enriched[which(Lactobacillus_helsingborgensis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Lactobacillus_helsingborgensis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+##### Lactobacillus_kullabergensis
+
+```{r Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_cooccur_tab2}
+Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis"), ]
+
+Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_genes <- c(Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_subset$gene1, Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_subset$gene2)
+
+Lactobacillus_kullabergensis_genes <- grep("Lactobacillus_kullabergensis", Lactobacillus_helsingborgensis_Lactobacillus_kullabergensis_genes, value = TRUE)
+
+
+Lactobacillus_kullabergensis_genes_enriched <- identify_enriched_COG_categories(genes = Lactobacillus_kullabergensis_genes,
+                                                                              background = grep("Lactobacillus_kullabergensis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Lactobacillus_kullabergensis_genes_enriched$fdr < 0.05)) > 0) {
+  Lactobacillus_kullabergensis_genes_enriched <- Lactobacillus_kullabergensis_genes_enriched[which(Lactobacillus_kullabergensis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Lactobacillus_kullabergensis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+
+#### Lactobacillus_kimbladii - Lactobacillus_kullabergensis {.tabset}
+
+##### Lactobacillus_kimbladii
+
+```{r Lactobacillus_kimbladii_Lactobacillus_kullabergensis_cooccur_tab1}
+Lactobacillus_kimbladii_Lactobacillus_kullabergensis_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Lactobacillus_kimbladii_Lactobacillus_kullabergensis"), ]
+
+Lactobacillus_kimbladii_Lactobacillus_kullabergensis_genes <- c(Lactobacillus_kimbladii_Lactobacillus_kullabergensis_subset$gene1, Lactobacillus_kimbladii_Lactobacillus_kullabergensis_subset$gene2)
+
+Lactobacillus_kimbladii_genes <- grep("Lactobacillus_kimbladii", Lactobacillus_kimbladii_Lactobacillus_kullabergensis_genes, value = TRUE)
+
+
+Lactobacillus_kimbladii_genes_enriched <- identify_enriched_COG_categories(genes = Lactobacillus_kimbladii_genes,
+                                                                              background = grep("Lactobacillus_kimbladii", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Lactobacillus_kimbladii_genes_enriched$fdr < 0.05)) > 0) {
+  Lactobacillus_kimbladii_genes_enriched <- Lactobacillus_kimbladii_genes_enriched[which(Lactobacillus_kimbladii_genes_enriched$fdr < 0.05), ]
+
+  datatable(Lactobacillus_kimbladii_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+##### Lactobacillus_kullabergensis
+
+```{r Lactobacillus_kimbladii_Lactobacillus_kullabergensis_cooccur_tab2}
+Lactobacillus_kimbladii_Lactobacillus_kullabergensis_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Lactobacillus_kimbladii_Lactobacillus_kullabergensis"), ]
+
+Lactobacillus_kimbladii_Lactobacillus_kullabergensis_genes <- c(Lactobacillus_kimbladii_Lactobacillus_kullabergensis_subset$gene1, Lactobacillus_kimbladii_Lactobacillus_kullabergensis_subset$gene2)
+
+Lactobacillus_kullabergensis_genes <- grep("Lactobacillus_kullabergensis", Lactobacillus_kimbladii_Lactobacillus_kullabergensis_genes, value = TRUE)
+
+
+Lactobacillus_kullabergensis_genes_enriched <- identify_enriched_COG_categories(genes = Lactobacillus_kullabergensis_genes,
+                                                                              background = grep("Lactobacillus_kullabergensis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Lactobacillus_kullabergensis_genes_enriched$fdr < 0.05)) > 0) {
+  Lactobacillus_kullabergensis_genes_enriched <- Lactobacillus_kullabergensis_genes_enriched[which(Lactobacillus_kullabergensis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Lactobacillus_kullabergensis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+
+#### Lactobacillus_kullabergensis - Lactobacillus_melliventris {.tabset}
+
+##### Lactobacillus_kullabergensis
+
+```{r Lactobacillus_kullabergensis_Lactobacillus_melliventris_cooccur_tab1}
+Lactobacillus_kullabergensis_Lactobacillus_melliventris_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Lactobacillus_kullabergensis_Lactobacillus_melliventris"), ]
+
+Lactobacillus_kullabergensis_Lactobacillus_melliventris_genes <- c(Lactobacillus_kullabergensis_Lactobacillus_melliventris_subset$gene1, Lactobacillus_kullabergensis_Lactobacillus_melliventris_subset$gene2)
+
+Lactobacillus_kullabergensis_genes <- grep("Lactobacillus_kullabergensis", Lactobacillus_kullabergensis_Lactobacillus_melliventris_genes, value = TRUE)
+
+
+Lactobacillus_kullabergensis_genes_enriched <- identify_enriched_COG_categories(genes = Lactobacillus_kullabergensis_genes,
+                                                                              background = grep("Lactobacillus_kullabergensis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Lactobacillus_kullabergensis_genes_enriched$fdr < 0.05)) > 0) {
+  Lactobacillus_kullabergensis_genes_enriched <- Lactobacillus_kullabergensis_genes_enriched[which(Lactobacillus_kullabergensis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Lactobacillus_kullabergensis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+##### Lactobacillus_melliventris
+
+```{r Lactobacillus_kullabergensis_Lactobacillus_melliventris_cooccur_tab2}
+Lactobacillus_kullabergensis_Lactobacillus_melliventris_subset <- discover_output_cooccur_cross[which(cross_species_instances_cooccur == "Lactobacillus_kullabergensis_Lactobacillus_melliventris"), ]
+
+Lactobacillus_kullabergensis_Lactobacillus_melliventris_genes <- c(Lactobacillus_kullabergensis_Lactobacillus_melliventris_subset$gene1, Lactobacillus_kullabergensis_Lactobacillus_melliventris_subset$gene2)
+
+Lactobacillus_melliventris_genes <- grep("Lactobacillus_melliventris", Lactobacillus_kullabergensis_Lactobacillus_melliventris_genes, value = TRUE)
+
+
+Lactobacillus_melliventris_genes_enriched <- identify_enriched_COG_categories(genes = Lactobacillus_melliventris_genes,
+                                                                              background = grep("Lactobacillus_melliventris", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Lactobacillus_melliventris_genes_enriched$fdr < 0.05)) > 0) {
+  Lactobacillus_melliventris_genes_enriched <- Lactobacillus_melliventris_genes_enriched[which(Lactobacillus_melliventris_genes_enriched$fdr < 0.05), ]
+
+  datatable(Lactobacillus_melliventris_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+
+
+
+# Mutually exclusive
+
+## Preprocess data
+
+```{r read_in_data_mutex}
+discover_output_mutex <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_mutex_results_clustered_DBH0.35.rds")
+
+panaroo_out <- readRDS("/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/highqual_genomes_panaroo/combined_panaroo_annot.rds")
+
+num_samples <- 74
+```
+
+```{r prep_full_network_mutex}
+net_mutex <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_mutex_results_clustered_DBH0.35_net.rds")
+```
+
+## Total associations and genes
+
+```{r num_total_genes_mutex}
+total_genes_mutex <- c(discover_output_mutex$gene1, discover_output_mutex$gene2)
+total_genes_mutex <- total_genes_mutex[-which(duplicated(total_genes_mutex))]
+```
+There are `r nrow(discover_output_mutex)` associations (at q < 0.3) in total based on `r length(total_genes_mutex)` unique genes.
+
+
+## Centrality metrics {.tabset}
+Only looked at edge degrees and betweenness centrality, because others I looked at were redundant or made no sense for unconnected graphs.
+
+```{r compute_centrality_metrics_mutex}
+net_mutex_degree <- degree(net_mutex)
+net_mutex_betweenness <- betweenness(net_mutex)
+
+```
+
+
+### Edge degree
+```{r degree_histogram_mutex}
+hist(net_mutex_degree)
+```
+
+Top 10 nodes by degree:
+```{r degree_top10_mutex}
+head(panaroo_out[names(sort(net_mutex_degree, decreasing = TRUE)), "Annotation"], 10)
+```
+
+### Betweenness centrality
+```{r betweenness_histogram_mutex}
+hist(net_mutex_betweenness)
+```
+
+Top 10 nodes by betweenness:
+```{r betweenness_top10_mutex}
+head(panaroo_out[names(sort(net_mutex_betweenness, decreasing = TRUE)), "Annotation"], 10)
+```
+
+
+## Network graph
+With all associations at discrete BH (DBH) < 0.35.
+
+```{r full_graph_mutex}
+net_mutex_flattened <- ggnetwork(net_mutex)
+
+ggplot(net_mutex_flattened, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_edges() +
+  geom_nodes(aes(color = species), size = 3) +
+  theme_blank()
+```
+
+## Cross-species associations
+
+```{r crossspecies_tally_mutex}
+discover_output_mutex$species1 <- NA
+discover_output_mutex$species2 <- NA
+
+for (sp in species) {
+  
+  if (length(grep(sp, discover_output_mutex$gene1)) > 0) {
+    discover_output_mutex[grep(sp, discover_output_mutex$gene1), "species1"] <- sp
+  }
+  
+  if (length(grep(sp, discover_output_mutex$gene2)) > 0) {
+    discover_output_mutex[grep(sp, discover_output_mutex$gene2), "species2"] <- sp
+  }
+}
+
+
+discover_output_mutex_cross <- discover_output_mutex[which(discover_output_mutex$species1 != discover_output_mutex$species2), ]
+
+total_cross_genes_mutex <- c(discover_output_mutex_cross$gene1, discover_output_mutex_cross$gene2)
+total_cross_genes_mutex <- total_cross_genes_mutex[-which(duplicated(total_cross_genes_mutex))]
+
+cross_gene_annot_mutex <- panaroo_out[total_cross_genes_mutex, "Annotation"]
+
+discover_output_mutex_cross$annot1 <- panaroo_out[discover_output_mutex_cross$gene1, "Annotation"]
+discover_output_mutex_cross$annot2 <- panaroo_out[discover_output_mutex_cross$gene2, "Annotation"]
+
+write.table(x = discover_output_mutex_cross,
+            file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_mutex_results_clustered_DBH0.3_cross_species.tsv",
+            sep = "\t",
+            quote = FALSE,
+            col.names = TRUE,
+            row.names = FALSE)
+```
+
+There are `r nrow(discover_output_mutex_cross)` cross-species associations (at q < 0.3) in total based on `r length(total_cross_genes_mutex)` unique genes.
+
+
+### Breakdown of cross-species associations
+
+```{r crossphylo_tally_breakdown_mutex}
+cross_species_instances_mutex <- c()
+
+for (i in 1:nrow(discover_output_mutex_cross)) {
+  rep_species <- sort(c(discover_output_mutex_cross$species1[i], discover_output_mutex_cross$species2[i]))
+  cross_species_instances_mutex <- c(cross_species_instances_mutex, paste(rep_species, collapse = "_"))
+}
+
+tested_genes <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/DISCOVER_network/Ellegaard_2019_2020_DISCOVER_tested_genes.rds")
+tested_genes <- names(tested_genes[which(tested_genes)])
+
+network_genes_only <- total_genes_mutex
+
+
+
+crossphylo_summary_mutex <- data.frame(matrix(NA, nrow = 0, ncol = 4))
+colnames(crossphylo_summary_mutex) <- c("species_group", "observed", "unnorm_expected_prop", "unnorm_expected_prop_sig_genes")
+
+species_present <- species[which(species %in% unique(c(discover_output_mutex_cross$species1, discover_output_mutex_cross$species2)))]
+
+row_i <- 1
+
+for (p1 in species_present) {
+ 
+  other_species <- species_present[-c(1:which(species_present == p1))]
+  
+  if (length(other_species) == 0) { break }
+  
+  for (p2 in other_species) {
+    
+    crossphylo_summary_mutex[row_i, "species_group"] <- paste(sort(c(p1, p2)), collapse = " - ")
+    
+    crossphylo_summary_mutex[row_i, "observed"] <- length(which(cross_species_instances_mutex == paste(sort(c(p1, p2)), collapse = "_")))
+
+    crossphylo_summary_mutex[row_i, "unnorm_expected_prop_all_genes"] <- compute_unnorm_expected_prop(tested_genes = tested_genes,
+                                                                                                        species1 = p1,
+                                                                                                        species2 = p2)
+
+    crossphylo_summary_mutex[row_i, "unnorm_expected_prop_sig_genes"] <- compute_unnorm_expected_prop(tested_genes = network_genes_only,
+                                                                                                        species1 = p1,
+                                                                                                        species2 = p2)
+  
+    row_i <- row_i + 1
+  }
+}
+
+crossphylo_summary_mutex$expected_all_prop <- crossphylo_summary_mutex$unnorm_expected_prop_all_genes / sum(crossphylo_summary_mutex$unnorm_expected_prop_all_genes)
+crossphylo_summary_mutex$expected_all_genes <- crossphylo_summary_mutex$expected_all_prop * nrow(discover_output_mutex_cross)
+
+crossphylo_summary_mutex$expected_sig_prop <- crossphylo_summary_mutex$unnorm_expected_prop_sig_genes / sum(crossphylo_summary_mutex$unnorm_expected_prop_sig_genes)
+crossphylo_summary_mutex$expected_sig_genes <- crossphylo_summary_mutex$expected_sig_prop * nrow(discover_output_mutex_cross)
+
+crossphylo_summary_mutex_melt <- melt(crossphylo_summary_mutex[, c("species_group", "observed", "expected_all_genes", "expected_sig_genes")], id = "species_group", variable.name = "count_type")
+```
+
+```{r crossphylo_tally_breakdown_mutex_plot, fig.height=10, fig.width=12}
+ggplot(data = crossphylo_summary_mutex_melt, aes(y = species_group, x = value, colour = count_type)) +
+  geom_point(size = 2) +
+  xlab("Number of associations") +
+  scale_y_discrete(limits = rev(levels(as.factor(crossphylo_summary_mutex_melt$species_group)))) +
+  scale_colour_manual(values = c("green", "black", "brown"))
+```
+
+
+### Functional enrichments of cross-species hits {.tabset}
+
+
+#### Bartonella_apis - Bombilactobacillus_mellis {.tabset}
+
+##### Bartonella_apis
+
+```{r Bartonella_apis_Bombilactobacillus_mellis_mutex_tab1}
+Bartonella_apis_Bombilactobacillus_mellis_subset <- discover_output_mutex_cross[which(cross_species_instances_mutex == "Bartonella_apis_Bombilactobacillus_mellis"), ]
+
+Bartonella_apis_Bombilactobacillus_mellis_genes <- c(Bartonella_apis_Bombilactobacillus_mellis_subset$gene1, Bartonella_apis_Bombilactobacillus_mellis_subset$gene2)
+
+Bartonella_apis_genes <- grep("Bartonella_apis", Bartonella_apis_Bombilactobacillus_mellis_genes, value = TRUE)
+
+
+Bartonella_apis_genes_enriched <- identify_enriched_COG_categories(genes = Bartonella_apis_genes,
+                                                                              background = grep("Bartonella_apis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Bartonella_apis_genes_enriched$fdr < 0.05)) > 0) {
+  Bartonella_apis_genes_enriched <- Bartonella_apis_genes_enriched[which(Bartonella_apis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Bartonella_apis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+##### Bombilactobacillus_mellis
+
+```{r Bartonella_apis_Bombilactobacillus_mellis_mutex_tab2}
+Bartonella_apis_Bombilactobacillus_mellis_subset <- discover_output_mutex_cross[which(cross_species_instances_mutex == "Bartonella_apis_Bombilactobacillus_mellis"), ]
+
+Bartonella_apis_Bombilactobacillus_mellis_genes <- c(Bartonella_apis_Bombilactobacillus_mellis_subset$gene1, Bartonella_apis_Bombilactobacillus_mellis_subset$gene2)
+
+Bombilactobacillus_mellis_genes <- grep("Bombilactobacillus_mellis", Bartonella_apis_Bombilactobacillus_mellis_genes, value = TRUE)
+
+
+Bombilactobacillus_mellis_genes_enriched <- identify_enriched_COG_categories(genes = Bombilactobacillus_mellis_genes,
+                                                                              background = grep("Bombilactobacillus_mellis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Bombilactobacillus_mellis_genes_enriched$fdr < 0.05)) > 0) {
+  Bombilactobacillus_mellis_genes_enriched <- Bombilactobacillus_mellis_genes_enriched[which(Bombilactobacillus_mellis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Bombilactobacillus_mellis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+
+#### Bartonella_apis - Gilliamella_apicola {.tabset}
+
+##### Bartonella_apis
+
+```{r Bartonella_apis_Gilliamella_apicola_mutex_tab1}
+Bartonella_apis_Gilliamella_apicola_subset <- discover_output_mutex_cross[which(cross_species_instances_mutex == "Bartonella_apis_Gilliamella_apicola"), ]
+
+Bartonella_apis_Gilliamella_apicola_genes <- c(Bartonella_apis_Gilliamella_apicola_subset$gene1, Bartonella_apis_Gilliamella_apicola_subset$gene2)
+
+Bartonella_apis_genes <- grep("Bartonella_apis", Bartonella_apis_Gilliamella_apicola_genes, value = TRUE)
+
+
+Bartonella_apis_genes_enriched <- identify_enriched_COG_categories(genes = Bartonella_apis_genes,
+                                                                              background = grep("Bartonella_apis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Bartonella_apis_genes_enriched$fdr < 0.05)) > 0) {
+  Bartonella_apis_genes_enriched <- Bartonella_apis_genes_enriched[which(Bartonella_apis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Bartonella_apis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+##### Gilliamella_apicola
+
+```{r Bartonella_apis_Gilliamella_apicola_mutex_tab2}
+Bartonella_apis_Gilliamella_apicola_subset <- discover_output_mutex_cross[which(cross_species_instances_mutex == "Bartonella_apis_Gilliamella_apicola"), ]
+
+Bartonella_apis_Gilliamella_apicola_genes <- c(Bartonella_apis_Gilliamella_apicola_subset$gene1, Bartonella_apis_Gilliamella_apicola_subset$gene2)
+
+Gilliamella_apicola_genes <- grep("Gilliamella_apicola", Bartonella_apis_Gilliamella_apicola_genes, value = TRUE)
+
+
+Gilliamella_apicola_genes_enriched <- identify_enriched_COG_categories(genes = Gilliamella_apicola_genes,
+                                                                              background = grep("Gilliamella_apicola", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Gilliamella_apicola_genes_enriched$fdr < 0.05)) > 0) {
+  Gilliamella_apicola_genes_enriched <- Gilliamella_apicola_genes_enriched[which(Gilliamella_apicola_genes_enriched$fdr < 0.05), ]
+
+  datatable(Gilliamella_apicola_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+
+
+#### Bartonella_apis - Lactobacillus_kimbladii {.tabset}
+
+##### Bartonella_apis
+
+```{r Bartonella_apis_Lactobacillus_kimbladii_mutex_tab1}
+Bartonella_apis_Lactobacillus_kimbladii_subset <- discover_output_mutex_cross[which(cross_species_instances_mutex == "Bartonella_apis_Lactobacillus_kimbladii"), ]
+
+Bartonella_apis_Lactobacillus_kimbladii_genes <- c(Bartonella_apis_Lactobacillus_kimbladii_subset$gene1, Bartonella_apis_Lactobacillus_kimbladii_subset$gene2)
+
+Bartonella_apis_genes <- grep("Bartonella_apis", Bartonella_apis_Lactobacillus_kimbladii_genes, value = TRUE)
+
+
+Bartonella_apis_genes_enriched <- identify_enriched_COG_categories(genes = Bartonella_apis_genes,
+                                                                              background = grep("Bartonella_apis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Bartonella_apis_genes_enriched$fdr < 0.05)) > 0) {
+  Bartonella_apis_genes_enriched <- Bartonella_apis_genes_enriched[which(Bartonella_apis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Bartonella_apis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+##### Lactobacillus_kimbladii
+
+```{r Bartonella_apis_Lactobacillus_kimbladii_mutex_tab2}
+Bartonella_apis_Lactobacillus_kimbladii_subset <- discover_output_mutex_cross[which(cross_species_instances_mutex == "Bartonella_apis_Lactobacillus_kimbladii"), ]
+
+Bartonella_apis_Lactobacillus_kimbladii_genes <- c(Bartonella_apis_Lactobacillus_kimbladii_subset$gene1, Bartonella_apis_Lactobacillus_kimbladii_subset$gene2)
+
+Lactobacillus_kimbladii_genes <- grep("Lactobacillus_kimbladii", Bartonella_apis_Lactobacillus_kimbladii_genes, value = TRUE)
+
+
+Lactobacillus_kimbladii_genes_enriched <- identify_enriched_COG_categories(genes = Lactobacillus_kimbladii_genes,
+                                                                              background = grep("Lactobacillus_kimbladii", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Lactobacillus_kimbladii_genes_enriched$fdr < 0.05)) > 0) {
+  Lactobacillus_kimbladii_genes_enriched <- Lactobacillus_kimbladii_genes_enriched[which(Lactobacillus_kimbladii_genes_enriched$fdr < 0.05), ]
+
+  datatable(Lactobacillus_kimbladii_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+
+#### Bartonella_apis - Lactobacillus_kullabergensis {.tabset}
+
+##### Bartonella_apis
+
+```{r Bartonella_apis_Lactobacillus_kullabergensis_mutex_tab1}
+Bartonella_apis_Lactobacillus_kullabergensis_subset <- discover_output_mutex_cross[which(cross_species_instances_mutex == "Bartonella_apis_Lactobacillus_kullabergensis"), ]
+
+Bartonella_apis_Lactobacillus_kullabergensis_genes <- c(Bartonella_apis_Lactobacillus_kullabergensis_subset$gene1, Bartonella_apis_Lactobacillus_kullabergensis_subset$gene2)
+
+Bartonella_apis_genes <- grep("Bartonella_apis", Bartonella_apis_Lactobacillus_kullabergensis_genes, value = TRUE)
+
+
+Bartonella_apis_genes_enriched <- identify_enriched_COG_categories(genes = Bartonella_apis_genes,
+                                                                              background = grep("Bartonella_apis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Bartonella_apis_genes_enriched$fdr < 0.05)) > 0) {
+  Bartonella_apis_genes_enriched <- Bartonella_apis_genes_enriched[which(Bartonella_apis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Bartonella_apis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+##### Lactobacillus_kullabergensis
+
+```{r Bartonella_apis_Lactobacillus_kullabergensis_mutex_tab2}
+Bartonella_apis_Lactobacillus_kullabergensis_subset <- discover_output_mutex_cross[which(cross_species_instances_mutex == "Bartonella_apis_Lactobacillus_kullabergensis"), ]
+
+Bartonella_apis_Lactobacillus_kullabergensis_genes <- c(Bartonella_apis_Lactobacillus_kullabergensis_subset$gene1, Bartonella_apis_Lactobacillus_kullabergensis_subset$gene2)
+
+Lactobacillus_kullabergensis_genes <- grep("Lactobacillus_kullabergensis", Bartonella_apis_Lactobacillus_kullabergensis_genes, value = TRUE)
+
+
+Lactobacillus_kullabergensis_genes_enriched <- identify_enriched_COG_categories(genes = Lactobacillus_kullabergensis_genes,
+                                                                              background = grep("Lactobacillus_kullabergensis", tested_genes, value = TRUE),
+                                                                              COG_mapfile = COG_map,
+                                                                              COG_descriptions = COG_descrip)
+
+if (length(which(Lactobacillus_kullabergensis_genes_enriched$fdr < 0.05)) > 0) {
+  Lactobacillus_kullabergensis_genes_enriched <- Lactobacillus_kullabergensis_genes_enriched[which(Lactobacillus_kullabergensis_genes_enriched$fdr < 0.05), ]
+
+  datatable(Lactobacillus_kullabergensis_genes_enriched, options = list(pageLength = 20)) %>%
+    formatStyle(names(df))
+} else {
+  print("No significant functions") 
+}
+```
+
+
+
+# Session info {.tabset}
+
+## Hide
+
+## Show
+
+```{r session_info}
+sessionInfo()
+```
+
