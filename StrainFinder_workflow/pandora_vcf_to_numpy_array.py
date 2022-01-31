@@ -213,6 +213,10 @@ def main():
 
     samples_to_keep = list(np.argwhere(nonzero_prop > args.cutoff).flatten())
 
+    if len(samples_to_keep) == 0:
+        sys.exit("Stopping - no samples remaining so no output will be "
+                 "produced.")
+
     num_samples_removed = len(samples) - len(samples_to_keep)
 
     full_array = full_array[samples_to_keep, :, :]
