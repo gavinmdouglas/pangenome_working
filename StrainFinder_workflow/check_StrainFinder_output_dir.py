@@ -25,8 +25,12 @@ def main():
                         help="Subfolder of output folder that contains actual StrainFinder output files",
                         required=False, default='strain_running')
 
+    parser.add_argument("--min_strains", metavar="MAX_STRAINS", type=int,
+                        help="Min num of strains to fit.",
+                        required=False, default = 1)
+
     parser.add_argument("--max_strains", metavar="MAX_STRAINS", type=int,
-                        help="Num strains fit from 1 to max_strains",
+                        help="Num strains fit from --min_strains to max_strains.",
                         required=False, default = 30)
 
     args = parser.parse_args()
@@ -45,7 +49,7 @@ def main():
 
     # If that exists then make sure that all expected output files are present.
     all_strainfinder_outputs = os.listdir(strainfinder_expected_path)
-    for i in range(1, args.max_strains + 1, 1):
+    for i in range(args.min_strains, args.max_strains + 1, 1):
         em_file = strainfinder_expected_path + '/' + 'em.' + args.gene_name + '.' + str(i) + '.cpickle'
         log_file = strainfinder_expected_path + '/' + 'log.' + args.gene_name + '.' + str(i) + '.txt'
         otu_file = strainfinder_expected_path + '/' + 'otu_table.' + args.gene_name + '.' + str(i) + '.txt'
@@ -65,7 +69,7 @@ def main():
 
     # Check that it's not malformed.
     AIC_in = pd.read_csv(AIC_file, sep = '\t')
-    if AIC_in.columns[0] != 'ID' or AIC_in.columns[1] != 'AIC' or AIC_in.shape[0] != args.max_strains:
+    if AIC_in.columns[0] != 'ID' or AIC_in.columns[1] != 'AIC' or AIC_in.shape[0] != args.max_strains - args.min_strains + 1:
         print(args.gene_name + '\t' + 'malformed_AIC_table')
         sys.exit()
 
