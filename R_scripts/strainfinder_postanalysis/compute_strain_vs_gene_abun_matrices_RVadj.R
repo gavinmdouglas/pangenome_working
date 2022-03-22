@@ -89,7 +89,7 @@ create_RVadj_row <- function(gene) {
      
      sample_concordance[1, "mean_permuted_RVadj"] <- mean(rand_RVadj)
      
-     sample_concordance[1, "permuted_RVadj_p"] <- (length(which(rand_RVadj >= sample_concordance[gene, "RVadj"])) + 1) / 1000
+     sample_concordance[1, "permuted_RVadj_p"] <- (length(which(rand_RVadj >= sample_concordance[1, "RVadj"])) + 1) / 1000
 
    }
    
@@ -105,52 +105,3 @@ RVadj_out <- do.call(rbind, RVadj_rows)
 saveRDS(object = RVadj_out,
         file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/output_summaries/strain_vs_gene_abun_RVadj.rds")
 
-
-
-# 
-# 
-# # Quick plot:
-# library(ggplot2)
-# library(ggbeeswarm)
-# 
-# sample_concordance <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/output_summaries/strain_vs_gene_abun_RVadj.rds")
-# 
-# sample_concordance <- sample_concordance[which(! is.na(sample_concordance$mean_permuted_RVadj)), ]
-# sample_concordance$ratio <- sample_concordance$RVadj / sample_concordance$mean_permuted_RVadj
-# sample_concordance$ratio[which(sample_concordance$ratio <= 0)] <- 0.01
-# 
-# sample_concordance$log2_ratio <- log2(sample_concordance$ratio)
-# 
-# sample_concordance$permuted_RVadj_p_set <- NA
-# sample_concordance$permuted_RVadj_p_set[which(sample_concordance$permuted_RVadj_p < 0.05)] <- "red"
-# sample_concordance$permuted_RVadj_p_set[which(sample_concordance$permuted_RVadj_p >= 0.05)] <- "grey"
-# 
-# 
-# ggplot(data = sample_concordance, aes(y = species, x = RVadj)) +
-#   geom_quasirandom() +
-#   geom_boxplot(outlier.shape = NA) +
-#   theme_bw()
-# 
-# ggplot(data = sample_concordance, aes(y = species, x = log2_ratio)) +
-#   geom_quasirandom(colour = sample_concordance$permuted_RVadj_p_set) +
-#   geom_boxplot(outlier.shape = NA) +
-#   theme_bw()
-# 
-# uniq_species <- sort(unique(sample_concordance$species))
-# sp_df <- data.frame(matrix(NA, ncol = 2, nrow = length(uniq_species)))
-# rownames(sp_df) <- uniq_species
-# colnames(sp_df) <- c("Sig.", "Non-sig.")
-# 
-# for (sp in uniq_species) {
-#   sample_concordance_sp <- sample_concordance[which(sample_concordance$species == sp), ]
-#   sp_df[sp, "Sig."] <- length(which(sample_concordance_sp$permuted_RVadj_p < 0.05))
-#   sp_df[sp, "Non-sig."] <- length(which(sample_concordance_sp$permuted_RVadj_p >= 0.05))
-# }
-# 
-# 
-# sp_df$prop_sig <- sp_df$Sig. / (sp_df$`Non-sig.` + sp_df$Sig.)
-# 
-# sp_df$num_samples_w_species <- sapply(rownames(sp_df), function(x) { nrow(strain_abun[[x]]) })
-# 
-# plot(sp_df$num_samples_w_species, sp_df$prop_sig, xlim = c(0, 74), ylim = c(0, 1),
-#      xlab = "Species prevalence (based on strains across samples)", ylab = "Prop. of genes that were significant")
