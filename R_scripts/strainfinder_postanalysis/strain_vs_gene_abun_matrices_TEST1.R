@@ -1,0 +1,149 @@
+rm(list = ls(all.names = TRUE))
+
+# Get measure of how well gene and strain haplotypes match up in order to see if they correlate with gene tree DTL metrics.
+# Based on RVadj metric comparing matrices, which is an extension of Pearson correlation.
+
+library(MatrixCorrelation)
+
+set.seed(20220321)
+
+strain_abun <- readRDS(file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/output_summaries/strain_abun.rds")
+
+all_genes_abun <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/output_summaries/all_genes_OTU.rds")
+
+presence_matrix <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_out_illumina_all_present/pandora_multisample.matrix",
+                              header = TRUE, sep = "\t", row.names = 1)
+
+species_presence <- readRDS(file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/core_genes/species_presence_50core_or_10percent.rds")
+
+
+all_genes <- unlist(sapply(all_genes_abun, names))
+
+sample_concordance <- data.frame(matrix(NA, nrow = length(all_genes), ncol = 9))
+colnames(sample_concordance) <- c("species", "gene", "num_strain_samples", "num_gene_samples", "num_intersecting",
+                                  "num_excluded_samples", "RVadj", "mean_permuted_RVadj", "permuted_RVadj_p")
+
+rownames(sample_concordance) <- all_genes
+sample_concordance$gene <- all_genes
+
+
+# For a random subset of genes, also perform permutation test to get baseline RVadj to compare with, and p-value.
+genes_for_permutation_test <- c()
+for (sp in names(all_genes_abun)) {
+  genes_for_permutation_test <- c(genes_for_permutation_test, sample(grep(sp, all_genes, value = TRUE), 100, replace = FALSE))
+}
+
+
+for (sp in names(all_genes_abun)) {
+
+  species_samples <- colnames(species_presence)[which(species_presence[sp, ] > 0)]
+  
+  species_samples_w_strain <- rownames(strain_abun[[sp]])
+  
+  species_samples_wo_strain <- species_samples[which(! species_samples %in% species_samples_w_strain)]
+  
+  sample_concordance[names(all_genes_abun[[sp]]), "species"] <- sp
+  
+  for (gene in names(all_genes_abun[[sp]])) {
+    
+    gene_samples <- colnames(presence_matrix)[which(presence_matrix[gene, ] > 0)]
+    
+    gene_samples_w_haplotype <- rownames(all_genes_abun[[sp]][[gene]])
+    
+    gene_samples_wo_haplotype <- gene_samples[which(! gene_samples %in% gene_samples_w_haplotype)]
+    
+    intersecting_samples <- species_samples_w_strain[which(species_samples_w_strain %in% gene_samples_w_haplotype)]
+    
+    samples2exclude <- c(species_samples_wo_strain, gene_samples_wo_haplotype)
+    
+    sample_concordance[gene, c("num_strain_samples",
+                               "num_gene_samples",
+                               "num_intersecting",
+                               "num_excluded_samples")] <- c(length(species_samples_w_strain),
+                                                             length(gene_samples_w_haplotype),
+                                                             length(intersecting_samples),
+                                                             length(samples2exclude))
+    
+    if (length(intersecting_samples) <= 2) { next }
+    
+    strain_abun_subset <- strain_abun[[sp]][intersecting_samples, , drop = FALSE]
+    gene_abun_subset <- all_genes_abun[[sp]][[gene]][intersecting_samples, , drop = FALSE]
+    
+    sample_concordance[gene, "RVadj"] <- MatrixCorrelation::RVadj(as.matrix(strain_abun_subset),
+                                                                  as.matrix(gene_abun_subset))
+    
+    if (gene %in% genes_for_permutation_test) {
+      rand_RVadj <- as.numeric()
+      
+      for (i in 1:1000) {
+        gene_abun_subset_rand <- gene_abun_subset
+        
+        for (j in 1:nrow(gene_abun_subset_rand)) {
+          gene_abun_subset_rand[j, ] <- sample(gene_abun_subset[j, , drop = FALSE])
+        }
+        
+        rand_RVadj <- c(rand_RVadj, MatrixCorrelation::RVadj(as.matrix(strain_abun_subset),
+                                                             as.matrix(gene_abun_subset_rand)))
+        
+        sample_concordance[gene, "mean_permuted_RVadj"] <- mean(rand_RVadj)
+        
+        sample_concordance[gene, "permuted_RVadj_p"] <- length(which(rand_RVadj >= sample_concordance[gene, "RVadj"])) / 1000
+        
+      }
+    }
+
+  }
+  
+}
+
+
+saveRDS(object = sample_concordance,
+        file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/output_summaries/strain_vs_gene_abun_RVadj.rds")
+
+
+
+# Quick plot:
+library(ggplot2)
+library(ggbeeswarm)
+
+sample_concordance <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/output_summaries/strain_vs_gene_abun_RVadj.rds")
+
+sample_concordance <- sample_concordance[which(! is.na(sample_concordance$mean_permuted_RVadj)), ]
+sample_concordance$ratio <- sample_concordance$RVadj / sample_concordance$mean_permuted_RVadj
+sample_concordance$ratio[which(sample_concordance$ratio <= 0)] <- 0.01
+
+sample_concordance$log2_ratio <- log2(sample_concordance$ratio)
+
+sample_concordance$permuted_RVadj_p_set <- NA
+sample_concordance$permuted_RVadj_p_set[which(sample_concordance$permuted_RVadj_p < 0.05)] <- "red"
+sample_concordance$permuted_RVadj_p_set[which(sample_concordance$permuted_RVadj_p >= 0.05)] <- "grey"
+
+
+ggplot(data = sample_concordance, aes(y = species, x = RVadj)) +
+  geom_quasirandom() +
+  geom_boxplot(outlier.shape = NA) +
+  theme_bw()
+
+ggplot(data = sample_concordance, aes(y = species, x = log2_ratio)) +
+  geom_quasirandom(colour = sample_concordance$permuted_RVadj_p_set) +
+  geom_boxplot(outlier.shape = NA) +
+  theme_bw()
+
+uniq_species <- sort(unique(sample_concordance$species))
+sp_df <- data.frame(matrix(NA, ncol = 2, nrow = length(uniq_species)))
+rownames(sp_df) <- uniq_species
+colnames(sp_df) <- c("Sig.", "Non-sig.")
+
+for (sp in uniq_species) {
+  sample_concordance_sp <- sample_concordance[which(sample_concordance$species == sp), ]
+  sp_df[sp, "Sig."] <- length(which(sample_concordance_sp$permuted_RVadj_p < 0.05))
+  sp_df[sp, "Non-sig."] <- length(which(sample_concordance_sp$permuted_RVadj_p >= 0.05))
+}
+
+
+sp_df$prop_sig <- sp_df$Sig. / (sp_df$`Non-sig.` + sp_df$Sig.)
+
+sp_df$num_samples_w_species <- sapply(rownames(sp_df), function(x) { nrow(strain_abun[[x]]) })
+
+plot(sp_df$num_samples_w_species, sp_df$prop_sig, xlim = c(0, 74), ylim = c(0, 1),
+     xlab = "Species prevalence (based on strains across samples)", ylab = "Prop. of genes that were significant")

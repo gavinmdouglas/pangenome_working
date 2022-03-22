@@ -1,0 +1,178 @@
+---
+title: Summarize StrainFinder for all individual genes
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+library(cowplot)
+library(ggplot2)
+library(ggbeeswarm)
+library(ComplexHeatmap)
+library(kableExtra)
+library(knitr)
+library(reshape2)
+```
+
+```{r read_inputs}
+species_present <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/mapfiles/species_present.txt", header = FALSE, stringsAsFactors = FALSE)$V1
+
+prepped_genes <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/all_gene_input/all_genes_prepped.txt",
+                            header = FALSE, stringsAsFactors = FALSE)$V1
+
+invariant_genes <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/all_gene_input/invariant_genes.txt",
+                              header = FALSE, stringsAsFactors = FALSE)$V1
+
+presence_matrix <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_out_illumina_all_present/pandora_multisample.matrix",
+                              header = TRUE, sep = "\t", row.names = 1)
+```
+
+```{r read_sf_output}
+outfolder <- "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/all_gene_output"
+
+AIC <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/all_gene_output_RDS/all_genes_AIC.rds")
+
+OTU <- readRDS("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/all_gene_output_RDS/all_genes_OTU.rds")
+```
+
+```{r compute_AIC_diff}
+AIC_diff_table <- data.frame(matrix(NA, nrow = length(species_present), ncol = 2))
+rownames(AIC_diff_table) <- species_present
+colnames(AIC_diff_table) <- c("clear_best", "ambig_best")
+
+for (sp in species_present) {
+  
+  sp_AIC_diff <- c()
+  
+  for (gene in names(AIC[[sp]])) {
+    gene_AIC_tab <- AIC[[sp]][[gene]]
+    sp_AIC_diff <- c(sp_AIC_diff, round(min(gene_AIC_tab$AIC[-which(gene_AIC_tab$AIC == min(gene_AIC_tab$AIC))]) - min(gene_AIC_tab$AIC), 2))
+  }
+  
+  AIC_diff_table[sp, "clear_best"] <- length(which(sp_AIC_diff > 2))
+  AIC_diff_table[sp, "ambig_best"] <- length(which(sp_AIC_diff <= 2))
+  
+}
+
+AIC_diff_table$percent_ambig <- (AIC_diff_table$ambig_best / c(AIC_diff_table$clear_best + AIC_diff_table$ambig_best)) * 100
+```
+
+```{r plot_AIC_diff_table}
+kable(AIC_diff_table) %>%
+  kable_styling(full_width = FALSE)
+```
+
+
+# Number of haplotypes per gene
+
+```{r parse_haplotype_sample_counts}
+haplotype_sample_counts_raw <- list() 
+
+for (sp in species_present) {
+  sp_haplotype_sample_tallies <- data.frame(matrix(NA, nrow = length(OTU[[sp]]), ncol = 5))
+  colnames(sp_haplotype_sample_tallies) <- c("Species", "Gene", "Num.Haplotype", "Num.Samples", "Num.Samples.Pandora")
+  sp_haplotype_sample_tallies$Species <- sp
+  sp_haplotype_sample_tallies$Gene <- names(OTU[[sp]])
+  rownames(sp_haplotype_sample_tallies) <- names(OTU[[sp]])
+ 
+  for (gene in names(OTU[[sp]])) {
+     sp_haplotype_sample_tallies[gene, "Num.Haplotype"] <- ncol(OTU[[sp]][[gene]])
+     sp_haplotype_sample_tallies[gene, "Num.Samples"] <- nrow(OTU[[sp]][[gene]])
+     sp_haplotype_sample_tallies[gene, "Num.Samples.Pandora"] <- length(which(presence_matrix[gene, ] > 0))
+  }
+  
+  haplotype_sample_counts_raw[[sp]] <- sp_haplotype_sample_tallies
+}
+
+haplotype_sample_counts <- do.call(rbind, haplotype_sample_counts_raw)
+```
+
+```{r haplotype_tally_boxplots}
+ggplot(data = haplotype_sample_counts, aes(y = Species, x = Num.Haplotype)) +
+  geom_quasirandom(colour = "grey") +
+  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+  theme_bw()
+```
+
+### AIC distributions
+
+```{r Gilliamella_rbn_2_AICs}
+
+Gilliamella_rbn_2_besthit_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit//Gilliamella_rbn_2.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_rbn_2_besthit_AICs$Datatype <- "besthit"
+
+
+Gilliamella_rbn_2_pandora.nostruct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_no_struct/Gilliamella_rbn_2.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_rbn_2_pandora.nostruct_AICs$Datatype <- "pandora.nostruct"
+
+
+Gilliamella_rbn_2_pandora.struct_AICs <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/pandora_prepped_w_struct/Gilliamella_rbn_2.strain_fit_summary.tsv",
+                                     header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Gilliamella_rbn_2_pandora.struct_AICs$Datatype <- "pandora.struct"
+
+
+Gilliamella_rbn_2_besthit_AICs_plot <- ggplot(data = Gilliamella_rbn_2_besthit_AICs, aes(x = ID, y = AIC)) +
+                                            geom_point() +
+                                            theme_bw() +
+                                            xlab("Number of strains") +
+                                            ggtitle("Best-hit")
+
+Gilliamella_rbn_2_pandora.nostruct_AICs_plot <- ggplot(data = Gilliamella_rbn_2_pandora.nostruct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (no structural)")
+
+
+Gilliamella_rbn_2_pandora.struct_AICs_plot <- ggplot(data = Gilliamella_rbn_2_pandora.struct_AICs, aes(x = ID, y = AIC)) +
+                                                      geom_point() +
+                                                      theme_bw() +
+                                                      xlab("Number of strains") +
+                                                      ggtitle("Pandora (with structural)")
+
+plot_grid(Gilliamella_rbn_2_besthit_AICs_plot, Gilliamella_rbn_2_pandora.nostruct_AICs_plot, Gilliamella_rbn_2_pandora.struct_AICs_plot, nrow = 1)
+```
+
+### Strain abundances {.tabset}
+
+#### Best-hit
+```{r Gilliamella_rbn_2_besthit_abun}
+Gilliamella_rbn_2_best_num_strain_best_fit <- as.character(Gilliamella_rbn_2_besthit_AICs[which(Gilliamella_rbn_2_besthit_AICs$AIC == min(Gilliamella_rbn_2_besthit_AICs$AIC)), "ID"])
+
+Gilliamella_rbn_2_best_num_strain_best_fit_abun_path <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/test_representative_genes/output/besthit/otu_tables/otu_table.Gilliamella_rbn_2.",
+                                                              Gilliamella_rbn_2_best_num_strain_best_fit,
+                                                              ".txt",
+                                                              sep = "")
+
+Gilliamella_rbn_2_best_num_strain_best_fit_abun <- read.table(file = Gilliamella_rbn_2_best_num_strain_best_fit_abun_path,
+                                                              header = FALSE, sep = "\t", skip = 1)
+
+Heatmap(log(as.matrix(Gilliamella_rbn_2_best_num_strain_best_fit_abun +  1e-08)),
+        show_column_names = FALSE,
+        column_title = "Strains",
+        row_title = "Samples",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE,
+        heatmap_legend_param = list(title = "log(abun \n      + 1e-8)"))
+```
+
+
+# Session info {.tabset}
+
+## Hide session info
+
+## Show session info
+
+Session details printed out for reproducibility.
+
+```{r session_info}
+sessionInfo()
+```

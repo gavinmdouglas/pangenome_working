@@ -1,0 +1,86 @@
+---
+title: "Explore strain-level AIC distributions"
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+
+```{r setup}
+suppressMessages(library(ComplexHeatmap))
+suppressMessages(library(ggplot2))
+suppressMessages(library(reshape2))
+suppressMessages(library(kableExtra))
+suppressMessages(library(knitr))
+suppressMessages(library(DT))
+suppressMessages(library(ggbeeswarm))
+```
+
+```{r read_in}
+species <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/mapfiles/species_present.txt",
+                      stringsAsFactors = FALSE)$V1
+
+AIC <- list()
+
+for (sp in species) {
+  
+  # Bifidobacterium_asteroides still running
+  if (sp == "Bifidobacterium_asteroides") { next }
+  
+  AIC_file <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/core_gene_output/AIC/",
+                     sp, ".strain_fit_summary.tsv", sep = "")
+  AIC[[sp]] <- read.table(AIC_file, sep = "\t", header = TRUE)
+
+  AIC[[sp]]$min <- "No"
+  
+  AIC[[sp]][which.min(AIC[[sp]]$AIC), "min"] <- "Yes"
+}
+
+
+```
+
+
+# AICs {.tabset}
+
+```{r chart_looping, results='asis', echo=FALSE}
+for (sp in names(AIC)) {
+  
+  cat('##', sp, ' \n')
+  
+  sp_plot <- ggplot(data = AIC[[sp]], aes(x = ID, y = AIC, colour = min)) +
+                geom_point(size = 2) +
+                scale_colour_manual(values=c("black", "red")) +
+                theme_bw() +
+                theme(legend.position = 'none') +
+                xlab("Number of strains") +
+                ggtitle(sp)
+  
+  print(sp_plot)
+  
+  cat('\n\n')
+  
+  cat("Difference between lowest AIC and next lowest is: ")
+  lowest_AIC <-  AIC[[sp]]$AIC[which(AIC[[sp]]$min == "Yes")]
+  AIC_without_lowest <- AIC[[sp]]$AIC[-which(AIC[[sp]]$min == "Yes")]
+  next_lowest_AIC <- AIC_without_lowest[which.min(AIC_without_lowest)]
+  cat(lowest_AIC - next_lowest_AIC)
+  
+  cat('\n\n')
+}
+```
+
+
+# Session info {.tabset}
+
+## Hide
+
+## Show
+
+```{r show_info}
+sessionInfo()
+```

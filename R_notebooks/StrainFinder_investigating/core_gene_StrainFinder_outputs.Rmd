@@ -1,0 +1,127 @@
+---
+title: Summarize StrainFinder results based on the core genes of each species.
+author: "Gavin Douglas"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+library(cowplot)
+library(ggplot2)
+library(ComplexHeatmap)
+library(kableExtra)
+library(knitr)
+```
+
+```{r species_read_in}
+species <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/mapfiles/species_present.txt", stringsAsFactors = FALSE)$V1
+```   
+
+# AIC distribution {.tabset}
+
+```{r AIC_plots, results = 'asis', echo = FALSE}
+all_num_strains <- list()
+
+for (sp in species) {
+  
+  cat("## ", sp, " \n\n")
+  
+  AIC_file <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/core_gene_output/",
+                    sp, "/", sp, ".strain_fit_summary.tsv", sep = "")
+  
+  AIC <- read.table(AIC_file, sep = "\t", stringsAsFactors = FALSE, header = TRUE)
+
+  AIC$min <- "Other"
+  AIC[which(AIC$AIC == min(AIC$AIC)), "min"] <- "Min"
+  
+  AIC_diff <- round(min(AIC$AIC[-which(AIC$AIC == min(AIC$AIC))]) - min(AIC$AIC), 2)
+  
+  num_strains <- AIC[which(AIC$AIC == min(AIC$AIC)), "ID"]
+  
+  all_num_strains[[sp]] <- as.character(num_strains)
+  
+  AIC_plot <- ggplot(data = AIC, aes(x = ID, y = AIC, colour = min)) +
+                     geom_point(size=3) +
+                     theme_bw() +
+                     xlab("Number of strains") +
+                     ggtitle(paste(sp, " - ", as.character(num_strains), " - AIC diff. of ", as.character(AIC_diff), sep = "")) +
+                     scale_colour_manual(values=c("grey", "black"))
+  
+  print(AIC_plot)
+  
+  cat("\n\n")
+}
+```
+
+
+# Strain abundances {.tabset}
+
+```{r metadata}
+sample_metadata <- read.table("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/mapfiles/Ellegaard.2019.2020_metadata.tsv",
+                              header = TRUE, sep = "\t", row.names = 1, stringsAsFactors = FALSE)
+```
+
+```{r strain_abun, results = 'asis', echo = FALSE}
+for (sp in species) {
+  
+  cat("## ", sp, " \n\n")
+  sp_num_strains <- all_num_strains[[sp]]
+  
+  if (sp == "Bifidobacterium_asteroides") {
+    strain_abun_file <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/core_gene_output/",
+                              sp, "/best_fit_rerun/otu_table.", all_num_strains[[sp]], ".txt", sep = "")
+  } else {
+    strain_abun_file <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/core_gene_output/",
+                              sp, "/strain_running/otu_table.", all_num_strains[[sp]], ".txt", sep = "")
+  }
+  
+  strain_abun <- read.table(file = strain_abun_file, header = FALSE, sep = "\t", skip = 1)
+  
+  strain_abun[strain_abun < 0.01] <- 0
+  
+  strain_abun <- data.frame(sweep(strain_abun, 1, rowSums(strain_abun), '/')) * 100
+  
+  if (length(which(colSums(strain_abun) == 0)) > 0) {
+    stop("Strain filtered out!") 
+  }
+  
+  sp_sample_file <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/core_gene_input/prepped_input/",
+                          sp, "_core_samples.txt", sep = "")
+  sp_samples <- read.table(sp_sample_file, stringsAsFactors = FALSE)$V1
+  
+  sp_sample_metadata <- sample_metadata[sp_samples, ]
+    
+  sp_row_annot <- rowAnnotation(Country=sp_sample_metadata$Country,
+                                Apiary=sp_sample_metadata$Apiary,
+                                Year=sp_sample_metadata$Year,
+                                Age=factor(sp_sample_metadata$Age, levels = c("Young", "Middle-aged", "Old")))
+  
+  print(Heatmap(as.matrix(strain_abun),
+          column_title = "Strains",
+          row_title = "Samples",
+          heatmap_legend_param = list(title = "Rel. abun. (%)"),
+          right_annotation = sp_row_annot))
+
+  cat("\n\n")
+  
+}
+        
+```
+
+
+# Session info {.tabset}
+
+## Hide session info
+
+## Show session info
+
+Session details printed out for reproducibility.
+
+```{r session_info}
+sessionInfo()
+```
