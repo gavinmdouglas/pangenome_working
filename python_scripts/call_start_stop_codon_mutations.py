@@ -53,7 +53,7 @@ def main():
         seq_info.loc[seq_id, 'expected_stop_position'] = expected_stop_pos
         seq_info.loc[seq_id, 'trailing_percent_truncated'] = trailing_percent_truncated
 
-    seq_info.to_csv(args.output, sep = "\t", header = True, na_rep='NA',
+    seq_info.to_csv(args.output, sep = "\t", header = False, na_rep='NA',
                     index_label = 'sequence')
 
 
