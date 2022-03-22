@@ -19,7 +19,12 @@ all_gene_otu_tabs_no_path <- list.files(path = "/data1/gdouglas/projects/honey_b
 
 all_genes <- gsub("otu_table.", "", all_gene_otu_tabs_no_path)
 all_genes <- gsub(".txt", "", all_genes)
-all_genes <- gsub("\\..*$", "", all_genes)
+all_genes <- gsub("\\.\\d*$", "", all_genes)
+
+genes_to_rm <- which(duplicated(all_genes))
+
+all_genes <- all_genes[-genes_to_rm]
+all_gene_otu_tabs <- all_gene_otu_tabs[-genes_to_rm]
 
 sample_concordance <- data.frame(matrix(NA, nrow = length(all_genes), ncol = 6))
 colnames(sample_concordance) <- c("phylotype", "gene", "num_gene_samples", "num_strain_samples", "num_intersecting", "RVadj")
@@ -37,7 +42,7 @@ for (i in 1:length(all_genes)) {
   
   otu_tab <- read.table(file = all_gene_otu_tabs[i], stringsAsFactors = FALSE, skip = 1)
   
-  gene_samples_file <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/phylotype_prepped_files/all_individual_genes/prepped_input_w_new_struct_alleles/",
+  gene_samples_file <- paste("/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/phylotype_prepped_files/all_individual_genes/prepped_input/",
                              gene,
                              "_samples.txt", sep = "")
   
@@ -64,3 +69,5 @@ for (i in 1:length(all_genes)) {
   
 }
 
+saveRDS(object = sample_concordance,
+        file = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/phylotype_prepped_files/all_individual_genes/output/gene_strain_abun_RVadj.rds")
