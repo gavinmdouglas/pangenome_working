@@ -7,7 +7,7 @@ from functions.io_utils import read_fasta
 from functions.codon import start_codon_present, stop_codon_premature_present
 import pandas as pd
 import numpy as np
-
+import math
 
 def main():
 
@@ -23,17 +23,19 @@ def main():
                         help='DNA sequence FASTA of input genes.',
                         required=True)
 
-    parser.add_argument('-o', '--output', metavar='TABLE', type=str,
-                        help='Output table to create.', required=True)
+    parser.add_argument("--out_header", action='store_true',
+                        help="Set to include a header for output table.",
+                        required = False, default = False)
 
     args = parser.parse_args()
 
     seqs = read_fasta(args.input)
 
-    seq_info = pd.DataFrame(columns = ['canonical_start_codon_missing', 'canonical_stop_codon_missing', 'start_position',
-                                       'leading_percent_truncated', 'premature_stop_position', 'expected_stop_position', 'trailing_percent_truncated'],
-                            index = seqs.keys())
-       
+
+    if args.out_header:
+        print("\t".join(['canonical_start_codon_missing', 'canonical_stop_codon_missing', 'start_position',
+                         'leading_percent_truncated', 'premature_stop_position', 'expected_stop_position',
+                         'trailing_percent_truncated']))       
 
     for seq_id, seq in seqs.items():
 
@@ -45,16 +47,10 @@ def main():
 
         (final_stop_present, premature_stop_codon_position, expected_stop_pos, trailing_percent_truncated) = stop_codon_premature_present(seq, start_codon_position)
 
-        seq_info.loc[seq_id, 'canonical_start_codon_missing'] = not exp_start_codon_present
-        seq_info.loc[seq_id, 'canonical_stop_codon_missing'] = not final_stop_present
-        seq_info.loc[seq_id, 'start_position'] = start_codon_position
-        seq_info.loc[seq_id, 'leading_percent_truncated'] = leading_percent_truncated
-        seq_info.loc[seq_id, 'premature_stop_position'] = premature_stop_codon_position
-        seq_info.loc[seq_id, 'expected_stop_position'] = expected_stop_pos
-        seq_info.loc[seq_id, 'trailing_percent_truncated'] = trailing_percent_truncated
+        if not exp_start_codon_present or not final_stop_present or not math.isnan(premature_stop_codon_position):
 
-    seq_info.to_csv(args.output, sep = "\t", header = False, na_rep='NA',
-                    index_label = 'sequence')
+            print("\t".join([str(not exp_start_codon_present), str(not final_stop_present), str(start_codon_position), str(leading_percent_truncated),
+                             str(premature_stop_codon_position), str(expected_stop_pos), str(trailing_percent_truncated)]))
 
 
 if __name__ == '__main__':

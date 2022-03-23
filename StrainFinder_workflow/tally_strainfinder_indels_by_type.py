@@ -12,7 +12,7 @@ def main():
 
     epilog='''Usage example:
 
-    python tally_strainfinder_indels_by_type.py -g GENE_NAME --otutable STRAINFINDER_OTUTABLE --sites SITES_FILE --struct_map STRUCT_MAP -o OUT_TABLE
+    python tally_strainfinder_indels_by_type.py -g GENE_NAME --otutable STRAINFINDER_OTUTABLE --sites SITES_FILE --struct_map STRUCT_MAP > OUTPUT
 
     ''', formatter_class=argparse.RawDescriptionHelpFormatter)
 
@@ -33,14 +33,8 @@ def main():
                         required=True)
 
     parser.add_argument("--out_header", action='store_true',
-                        help="Set to include a header for outpu table.",
+                        help="Set to include a header for output table.",
                         required = False, default = False)
-
-    parser.add_argument("-o", "--output", metavar="OUT_TABLE", type=str,
-                        help="Path to output TABLE. Columns are gene name, haplotype number, "
-                             "# non-frameshift insertions, # non-frameshift deletions, "
-                             "# frameshift insertions, and # frameshift deletions.",
-                        required=True)
 
     args = parser.parse_args()
 
@@ -74,10 +68,8 @@ def main():
 
             struct_variant_refs[pos] = ref_allele
 
-    outfile = open(args.output, 'w')
-
     if args.out_header:
-        print("gene\thaplotype\tnonframe_insert\tnonframe_del\tframe_insert\tframe_del", file = outfile)
+        print("gene\thaplotype\tnonframe_insert\tnonframe_del\tframe_insert\tframe_del")
 
     haplotype_seqs = dict()
     haplotype_num = 1
@@ -99,7 +91,13 @@ def main():
 
                 ref_allele = struct_variant_refs[var_pos]
 
-                alt_allele = struct_variants[var_pos][h[variant_num]]
+                if not h[variant_num] in struct_variants[var_pos]:
+                    print("Error - base not found in structured mapping file - base " + h[variant_num] + " at position " + str(var_pos) + ". Assuming that this is the reference base.",
+                          file = sys.stderr)
+                    alt_allele = ref_allele
+
+                else:
+                    alt_allele = struct_variants[var_pos][h[variant_num]]
 
                 # Only an indel if they are not the same length.
                 if len(ref_allele) != len(alt_allele):
@@ -121,14 +119,14 @@ def main():
                  
             variant_num += 1
 
-        outline = [args.gene_name, str(haplotype_num), str(nonframe_insert),
-                   str(nonframe_del), str(frame_insert), str(frame_del)]
 
-        print("\t".join(outline), file = outfile)
+        if nonframe_insert > 0 or nonframe_del > 0 or frame_insert > 0 or frame_del > 0:
+            outline = [args.gene_name, str(haplotype_num), str(nonframe_insert),
+                       str(nonframe_del), str(frame_insert), str(frame_del)]
+
+            print("\t".join(outline))
 
         haplotype_num += 1
-
-    outfile.close()
 
 if __name__ == '__main__':
     main()
