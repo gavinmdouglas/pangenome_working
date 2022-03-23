@@ -1,4 +1,6 @@
 ### Get annotations for overall orthologs.
+### Note that the COG category classification in the eggNOG output is based on an outdated version that doesn't include mobile elements.
+### So I re-ran the mapping based on cases where the broadest OG was a COG.
 
 rm(list = ls(all.names = TRUE))
 
@@ -8,18 +10,31 @@ library(stringr)
 eggNOG_output <- read.table(file = "/data1/gdouglas/projects/honey_bee/ref_genome_pangenomes/species/2022_01_07_func_annotating/eggNOG_output/all_microbiota_eggNOG.tsv",
                             header = TRUE, sep = "\t", row.names = 1, stringsAsFactors = FALSE, quote = "", comment.char = "")
 
-COG_output <- eggNOG_output[which(!is.na(eggNOG_output$COG_category)), ]
+COG2category <- readRDS("/data1/gdouglas/db/COG_definitions/cog-20.to_category_collapse.rds")
 
+COG_output <- eggNOG_output[grep("^COG", eggNOG_output$broadest_OG), ]
 
-# Need to add commands between cases where genes are assigned to multiple COG categories.
-COG_category_nchar <- sapply(COG_output$COG_category, nchar)
+# Noted that a few of the COGs were missing from the COG to category mapping, so I added the mapping manually.
+# These were based on the definitions on NCBI for the gene family
+# E.g., https://www.ncbi.nlm.nih.gov/Structure/cdd/COG5061
+unique(COG_output$broadest_OG[which(! COG_output$broadest_OG %in% rownames(COG2category))])
+COG2category["COG3512", ] <- c("COG3512", "V")
+COG2category["COG5290", ] <- c("COG5290", "K")
+COG2category["COG5113", ] <- c("COG5113", "O")
+COG2category["COG5061", ] <- c("COG5061", "O,U")
 
-for (i in which(COG_category_nchar != 1)) {
-  
-  new_COG_category <- paste(sort(strsplit(COG_output[i, "COG_category"], split = "")[[1]]), collapse = ",")
-  
-  COG_output[i, "COG_category"] <- new_COG_category
-}
+COG_output$COG_category <- COG2category[COG_output$broadest_OG, "category"]
+
+# # Need to add commands between cases where genes are assigned to multiple COG categories.
+# NOTE: These commands would only be needed if you were to use the original eggNOG COG category column, which does not delimit by commas
+# COG_category_nchar <- sapply(COG_output$COG_category, nchar)
+# 
+# for (i in which(COG_category_nchar != 1)) {
+#   
+#   new_COG_category <- paste(sort(strsplit(COG_output[i, "COG_category"], split = "")[[1]]), collapse = ",")
+#   
+#   COG_output[i, "COG_category"] <- new_COG_category
+# }
 
 panaroo_out <- list()
 

@@ -1,3 +1,61 @@
+identify_enriched_categories <- function(genes,
+                                         background,
+                                         category_to_gene_map) {
+  
+  enrichments_out <- data.frame(matrix(NA, nrow = length(category_to_gene_map), ncol = 8))
+  rownames(enrichments_out) <- names(category_to_gene_map)
+  colnames(enrichments_out) <- c("category", "genes_num_category", "genes_num_other",
+                                 "background_num_category", "background_num_other", "OR", "p", "fdr")
+  
+  enrichments_out[names(category_to_gene_map), "category"] <- names(category_to_gene_map)
+  
+  for (category in rownames(enrichments_out)) {
+    
+    genes_num_category <- length(which(genes %in% category_to_gene_map[[category]]))
+    genes_num_other <- length(genes) - genes_num_category
+    
+    background_num_category <- length(which(background %in% category_to_gene_map[[category]]))
+    background_num_other <- length(background) - background_num_category
+    
+    count_table <- matrix(c(genes_num_category, genes_num_other, background_num_category, background_num_other), nrow = 2, ncol = 2)
+    
+    fisher_out <- fisher.test(count_table)
+    
+    enrichments_out[category, c("genes_num_category",
+                                "genes_num_other",
+                                "background_num_category",
+                                "background_num_other", "p")] <- c(genes_num_category,
+                                                                   genes_num_other,
+                                                                   background_num_category,
+                                                                   background_num_other,
+                                                                   fisher_out$p.value)
+    if (genes_num_other > 0) {
+      ratio_numer <- genes_num_category / genes_num_other
+    } else {
+      ratio_numer <- genes_num_category / 1 
+    }
+    
+    if (background_num_other == 0) {
+      ratio_denom <- 1
+    } else if(background_num_category == 0) {
+      ratio_denom <- 1 / background_num_other
+    } else {
+      ratio_denom <- background_num_category / background_num_other
+    }
+    
+    enrichments_out[category, "OR"] <- ratio_numer / ratio_denom
+  }
+  
+  enrichments_out$fdr <- p.adjust(enrichments_out$p, "fdr")
+  
+  rownames(enrichments_out) <- NULL
+  
+  return(enrichments_out)
+  
+}
+
+
+
 read_in_breadth_files <- function(in_path, pattern, roary_formatted_pangenome) {
   
   in_path <- gsub("/$", "", in_path)
