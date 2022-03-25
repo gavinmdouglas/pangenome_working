@@ -23,6 +23,10 @@ def main():
                         help='DNA sequence FASTA of input genes.',
                         required=True)
 
+    parser.add_argument('-n', '--name', metavar='NAME', type=str,
+                        help='Name to include in output table: usually the unique gene or ortholog id.',
+                        required=True)
+
     parser.add_argument("--out_header", action='store_true',
                         help="Set to include a header for output table.",
                         required = False, default = False)
@@ -33,7 +37,7 @@ def main():
 
 
     if args.out_header:
-        print("\t".join(['canonical_start_codon_missing', 'canonical_stop_codon_missing', 'start_position',
+        print("\t".join(['name', 'canonical_start_codon_missing', 'canonical_stop_codon_missing', 'start_position',
                          'leading_percent_truncated', 'premature_stop_position', 'expected_stop_position',
                          'trailing_percent_truncated']))       
 
@@ -49,8 +53,8 @@ def main():
 
         if not exp_start_codon_present or not final_stop_present or not math.isnan(premature_stop_codon_position):
 
-            print("\t".join([str(not exp_start_codon_present), str(not final_stop_present), str(start_codon_position), str(leading_percent_truncated),
-                             str(premature_stop_codon_position), str(expected_stop_pos), str(trailing_percent_truncated)]))
+            print("\t".join([args.name, str(not exp_start_codon_present), str(not final_stop_present), str(start_codon_position),
+                             str(leading_percent_truncated), str(premature_stop_codon_position), str(expected_stop_pos), str(trailing_percent_truncated)]))
 
 
 if __name__ == '__main__':
