@@ -21,7 +21,7 @@ def pairwise_dnds(seq1, seq2):
     if ds > 0:
         dnds = dn / ds
     else:
-        dnds = float('NaN')        
+        dnds = float('NaN')
 
     return((dn, ds, dnds))
 
@@ -73,6 +73,7 @@ def obs_N_S_subs(seq1, seq2):
 
                     if codon2aa[new_codon] == codon1_aa:
                         Sd += 1
+
                     else:
                         Nd += 1
 
@@ -126,5 +127,15 @@ def exp_N_S_sites(in_seq):
 
 
 def sub_prop_to_rate(p):
-    return(-1 * (3/4) * log(1 - (4 * p) / 3))
+
+    if p == 0:
+        return(0)
+
+    renorm_val = (4 * p) / 3
+
+    # Quick hack to allow wonky comparisons where the observed proportion of divergent codons is too high to compute a rate.
+    if renorm_val >= 1:
+        renorm_val = 0.99999
+
+    return(-1 * (3/4) * log(1 - renorm_val))
 

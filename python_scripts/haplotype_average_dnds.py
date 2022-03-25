@@ -56,6 +56,9 @@ def main():
 
     seqs = read_fasta(args.input_haplotypes)
 
+    if len(seqs.keys()) == 1:
+        sys.exit("Stopping as there is only one gene haplotype present.")
+
     pairwise_combos = list(itertools.combinations(seqs, 2))
 
     # Get table of all pairwise dn/ds values.
@@ -116,7 +119,7 @@ def main():
     all_ref_dnds = []
 
     for ref_combo in ref_pairwise_combos:
-        all_ref_dnds.append(pairwise_dnds(seqs[combo[0]], seqs[combo[1]])[2])
+        all_ref_dnds.append(pairwise_dnds(ref_seqs[ref_combo[0]], ref_seqs[ref_combo[1]])[2])
 
     per_sample_dnds.loc['reference_seqs', 'dnds'] = np.mean(all_ref_dnds)
 
