@@ -106,9 +106,9 @@ def main():
                 if haplotype_indices_level0[i] in haplotypes_present_ids and haplotype_indices_level1[i] in haplotypes_present_ids:
                     indices_with_present_haplotypes.append(i)
 
-            per_sample_dnds.loc[s, 'dnds'] = np.mean(haplotype_dnds.iloc[indices_with_present_haplotypes, 2])
+            per_sample_dnds.loc[s, 'dnds'] = np.nanmean(np.array(haplotype_dnds.iloc[indices_with_present_haplotypes, 2]), dtype='float32')
 
-    per_sample_dnds.loc['all_haplotypes', 'dnds'] = np.mean(haplotype_dnds.dnds)
+    per_sample_dnds.loc['all_haplotypes', 'dnds'] = np.nanmean(np.array(haplotype_dnds.dnds), dtype='float32')
 
     # Get averaged dn/ds across all ref sequences.
     ref_seqs = read_fasta(args.ref)
@@ -121,7 +121,7 @@ def main():
     for ref_combo in ref_pairwise_combos:
         all_ref_dnds.append(pairwise_dnds(ref_seqs[ref_combo[0]], ref_seqs[ref_combo[1]])[2])
 
-    per_sample_dnds.loc['reference_seqs', 'dnds'] = np.mean(all_ref_dnds)
+    per_sample_dnds.loc['reference_seqs', 'dnds'] = np.nanmean(np.array(all_ref_dnds), dtype='float32')
 
     # Write output.
     per_sample_dnds.to_csv(args.out_prefix + "_dnds.tsv", sep = "\t",

@@ -63,7 +63,6 @@ def main():
 
     haplotype_div_metrics.loc['all_haplotypes', :] = list(tajimas_d_and_diversity_metrics(seqs.values()))
 
-    sys.exit()
     haplotype_div_metrics.loc['reference_seqs', :] = list(tajimas_d_and_diversity_metrics(ref_seqs.values()))
 
 
@@ -94,7 +93,6 @@ def main():
         else:
 
             haplotype_div_metrics.loc[s, :] = [len(haplotypes_present), float("NaN"), float("NaN"), float("NaN"), float("NaN")]
-
 
     # Write output.
     haplotype_div_metrics.to_csv(args.out_prefix + "_tajimas_d_and_metrics.tsv",
