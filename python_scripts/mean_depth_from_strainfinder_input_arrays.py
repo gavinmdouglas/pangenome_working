@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 all_genes_w_variation = []
-all_genes_w_variation_filepath = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/all_individual_genes/all_genes_w_variation.txt"
+all_genes_w_variation_filepath = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/all_gene_input/all_genes_prepped.txt"
 
 with open(all_genes_w_variation_filepath, 'r') as gene_id_file:
     for gene in gene_id_file:
@@ -32,13 +32,13 @@ mean_depth_of_variants.loc[:, :] = 0
 
 for gene in all_genes_w_variation:
 
-    samples_filepath = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/all_individual_genes/prepped_input/" + gene + "_samples.txt"
+    samples_filepath = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/all_gene_input/prepped_input/" + gene + "_samples.txt"
     samples = []
     with open(samples_filepath, 'r') as sample_file:
         for sample in sample_file:
             samples.append(sample.rstrip())
 
-    pickle_filepath = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/all_individual_genes/prepped_input/" + gene + ".np.cPickle"
+    pickle_filepath = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/StrainFinder_running/all_gene_input/prepped_input/" + gene + ".np.cPickle"
     inalign = cPickle.load(open(pickle_filepath, 'rb'))
 
     for s_i in range(len(samples)):
@@ -52,6 +52,6 @@ for gene in all_genes_w_variation:
         mean_depth_of_variants.loc[gene, samples[s_i]] = sum(depth_per_site) / len(depth_per_site)
 
 
-mean_depth_of_variants.to_csv(path_or_buf = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_out_illumina/pandora_mean_variant_site_depth.tsv",
+mean_depth_of_variants.to_csv(path_or_buf = "/data1/gdouglas/projects/honey_bee/combined_Ellegaard.2019.2020/pandora_running/pandora_out_illumina_all_present/pandora_mean_variant_site_depth.tsv",
                               sep = '\t')
 
