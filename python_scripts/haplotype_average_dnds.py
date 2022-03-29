@@ -13,7 +13,8 @@ def main():
 
     parser = argparse.ArgumentParser(
 
-    description="Calc dN/dS averaged across all pairwise haplotypes (and also for the subset of haplotypes in each sample with at least two haplotypes). Also calculate based on all gene sequences from reference genomes.",
+    description="Calc dN/dS averaged across all pairwise haplotypes (and also for the subset of haplotypes in each sample with at least two haplotypes). "
+                "Will also compute dN/dS for haplotypes within and not within each given sample. Also calculate based on all gene sequences from reference genomes.",
 
     epilog='''Usage example:
 
@@ -81,7 +82,7 @@ def main():
 
     haplotype_abun.index = samples
 
-    per_sample_dnds = pd.DataFrame(columns = ['dnds'], index = samples)
+    per_sample_dnds = pd.DataFrame(columns = ['within_dnds', 'between_dnds'], index = samples)
 
     for s in samples:
         
@@ -100,15 +101,25 @@ def main():
                 haplotypes_present_ids.append("haplotype" + str(haplotype_num) + "_" + args.gene)
 
             indices_with_present_haplotypes = []
+            indices_with_only_one_present_haplotype = []
 
             for i in range(len(haplotype_indices_level0)):
 
                 if haplotype_indices_level0[i] in haplotypes_present_ids and haplotype_indices_level1[i] in haplotypes_present_ids:
                     indices_with_present_haplotypes.append(i)
+                elif haplotype_indices_level0[i] in haplotypes_present_ids and haplotype_indices_level1[i] not in haplotypes_present_ids:
+                    indices_with_only_one_present_haplotype.append(i)
+                elif haplotype_indices_level0[i] not in haplotypes_present_ids and haplotype_indices_level1[i] in haplotypes_present_ids:
+                    indices_with_only_one_present_haplotype.append(i)
 
-            per_sample_dnds.loc[s, 'dnds'] = np.nanmean(np.array(haplotype_dnds.iloc[indices_with_present_haplotypes, 2]), dtype='float32')
+            if len(indices_with_present_haplotypes) > 1 and haplotype_dnds.iloc[indices_with_present_haplotypes, 2].count() > 0:
+                per_sample_dnds.loc[s, 'within_dnds'] = np.nanmean(np.array(haplotype_dnds.iloc[indices_with_present_haplotypes, 2]), dtype='float32')
 
-    per_sample_dnds.loc['all_haplotypes', 'dnds'] = np.nanmean(np.array(haplotype_dnds.dnds), dtype='float32')
+            if len(indices_with_only_one_present_haplotype) > 1 and haplotype_dnds.iloc[indices_with_only_one_present_haplotype, 2].count() > 0:
+                per_sample_dnds.loc[s, 'between_dnds'] = np.nanmean(np.array(haplotype_dnds.iloc[indices_with_only_one_present_haplotype, 2]), dtype='float32')
+
+    if haplotype_dnds.dnds.count() > 0:
+        per_sample_dnds.loc['all_haplotypes', 'within_dnds'] = np.nanmean(np.array(haplotype_dnds.dnds), dtype='float32')
 
     # Get averaged dn/ds across all ref sequences.
     ref_seqs = read_fasta(args.ref)
@@ -121,7 +132,8 @@ def main():
     for ref_combo in ref_pairwise_combos:
         all_ref_dnds.append(pairwise_dnds(ref_seqs[ref_combo[0]], ref_seqs[ref_combo[1]])[2])
 
-    per_sample_dnds.loc['reference_seqs', 'dnds'] = np.nanmean(np.array(all_ref_dnds), dtype='float32')
+    if sum(all_ref_dnds) > 0:
+        per_sample_dnds.loc['reference_seqs', 'within_dnds'] = np.nanmean(np.array(all_ref_dnds), dtype='float32')
 
     # Write output.
     per_sample_dnds.to_csv(args.out_prefix + "_dnds.tsv", sep = "\t",

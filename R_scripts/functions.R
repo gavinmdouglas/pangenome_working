@@ -1,3 +1,38 @@
+# Function to duplicate redundant rows that differ only be denoting the different COG categories a gene belongs to.
+expand_for_multi_COG_category <- function(in_tab) {
+  
+  multi_row_i <- grep(",", in_tab$COG_category)
+  
+  if (length(multi_row_i) == 0) { return(in_tab) }
+  
+  multi_rows <- in_tab[multi_row_i, , drop = FALSE]
+  final_tab <- in_tab[-multi_row_i, , drop = FALSE]
+  
+  new_rows <- list()
+  new_row_index <- 1
+  for (row_i in 1:nrow(multi_rows)) {
+    row_content <-  multi_rows[row_i, ]
+    
+    assigned_categories <- strsplit(row_content$COG_category, ",")[[1]]
+    
+    for (assigned_category in assigned_categories) {
+      tmp_row <- row_content
+      tmp_row$COG_category <- assigned_category
+      new_rows[[new_row_index]] <- tmp_row
+      new_row_index <- new_row_index + 1
+    }
+  }
+  
+  new_multi <- do.call(rbind, new_rows)
+  
+  final_tab <- rbind(final_tab, new_multi)
+  
+  return(final_tab)
+  
+}
+
+
+
 identify_enriched_categories <- function(genes,
                                          background,
                                          category_to_gene_map) {

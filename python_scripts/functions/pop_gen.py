@@ -1,9 +1,10 @@
 #!/usr/bin/python3
 
-from math import sqrt
+from math import sqrt, comb
 import numpy as np
 import itertools
 import sys
+from collections import Counter
 
 def tajimas_d_and_diversity_metrics(in_seqs):
     '''Return n, S, Watterson's theta, nucleotide diversity, and Tajima's D as a tuple
@@ -25,7 +26,13 @@ def calc_theta_pi_and_num_segregating(in_seqs):
 
     bases = ['A', 'C', 'G', 'T']
 
-    pairwise_comparisons = list(itertools.combinations(in_seqs, 2))
+    # Dereplicate sequences
+    inseqs_breakdown = Counter(in_seqs)
+
+    if len(inseqs_breakdown.keys()) == 1:
+        return((0, 0))
+
+    pairwise_comparisons = list(itertools.combinations(inseqs_breakdown.keys(), 2))
 
     segregating_sites = set()
 
@@ -50,7 +57,19 @@ def calc_theta_pi_and_num_segregating(in_seqs):
                     num_diff += 1
                     segregating_sites.add(i)
 
-        pairwise_diffs.append(num_diff)
+        # Add the num diff for every time the non-dereplicated sequences would have been compared.
+        for compare_i in range(inseqs_breakdown[seq1] * inseqs_breakdown[seq2]):
+            pairwise_diffs.append(num_diff)
+
+    # Also add in num diff's of 0 for redundant sequences.
+    for unique_seq in inseqs_breakdown.keys():
+        unique_seq_freq = inseqs_breakdown[unique_seq]
+        
+        if unique_seq_freq == 1:
+            continue
+
+        for duplicated_seq_combo in range(comb(unique_seq_freq, 2)):
+            pairwise_diffs.append(0)
 
     return((np.mean(pairwise_diffs), len(segregating_sites)))
 
