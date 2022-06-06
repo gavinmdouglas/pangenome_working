@@ -104,6 +104,22 @@ def main():
         else:
             haplotype_div_metrics.loc[s, :] = [len(haplotypes_present), float("NaN"), float("NaN"), float("NaN"), float("NaN")]
 
+    if haplotype_div_metrics.n.count() > 0:
+        haplotype_div_metrics.loc['all_samples', 'n'] = np.nanmean(np.array(haplotype_div_metrics.n), dtype='float32')
+
+    if haplotype_div_metrics.S.count() > 0:
+        haplotype_div_metrics.loc['all_samples', 'S'] = np.nanmean(np.array(haplotype_div_metrics.S), dtype='float32')
+
+    if haplotype_div_metrics.Wattersons.count() > 0:
+        haplotype_div_metrics.loc['all_samples', 'Wattersons'] = np.nanmean(np.array(haplotype_div_metrics.Wattersons), dtype='float32')
+
+    if haplotype_div_metrics.pi.count() > 0:
+        haplotype_div_metrics.loc['all_samples', 'pi'] = np.nanmean(np.array(haplotype_div_metrics.pi), dtype='float32')
+
+    if haplotype_div_metrics.D.count() > 0:
+        haplotype_div_metrics.loc['all_samples', 'D'] = np.nanmean(np.array(haplotype_div_metrics.D), dtype='float32')
+
+
     # Write output.
     haplotype_div_metrics.to_csv(args.out_prefix + "_tajimas_d_and_metrics.tsv",
                                  sep = "\t", header = True, na_rep='NA',

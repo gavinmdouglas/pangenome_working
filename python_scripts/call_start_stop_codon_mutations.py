@@ -37,7 +37,7 @@ def main():
 
 
     if args.out_header:
-        print("\t".join(['name', 'canonical_start_codon_missing', 'canonical_stop_codon_missing', 'start_position',
+        print("\t".join(['name', 'seq_id', 'canonical_start_codon_missing', 'canonical_stop_codon_missing', 'start_position',
                          'leading_percent_truncated', 'premature_stop_position', 'expected_stop_position',
                          'trailing_percent_truncated']))       
 
@@ -53,7 +53,7 @@ def main():
 
         if not exp_start_codon_present or not final_stop_present or not math.isnan(premature_stop_codon_position):
 
-            print("\t".join([args.name, str(not exp_start_codon_present), str(not final_stop_present), str(start_codon_position),
+            print("\t".join([args.name, seq_id, str(not exp_start_codon_present), str(not final_stop_present), str(start_codon_position),
                              str(leading_percent_truncated), str(premature_stop_codon_position), str(expected_stop_pos), str(trailing_percent_truncated)]))
 
 

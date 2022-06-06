@@ -57,7 +57,7 @@ def main():
 
                 total_features += 1
                 
-                if new_size < args.trim_size:
+                if new_size < args.min_final_size:
                     num_features_below_cutoff += 1
                 
                 else:

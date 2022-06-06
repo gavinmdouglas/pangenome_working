@@ -118,6 +118,12 @@ def main():
             if len(indices_with_only_one_present_haplotype) > 1 and haplotype_dnds.iloc[indices_with_only_one_present_haplotype, 2].count() > 0:
                 per_sample_dnds.loc[s, 'between_dnds'] = np.nanmean(np.array(haplotype_dnds.iloc[indices_with_only_one_present_haplotype, 2]), dtype='float32')
 
+    if per_sample_dnds.within_dnds.count() > 0:
+        per_sample_dnds.loc['all_samples', 'within_dnds'] = np.nanmean(np.array(per_sample_dnds.within_dnds), dtype='float32')
+
+    if per_sample_dnds.between_dnds.count() > 0:
+        per_sample_dnds.loc['all_samples', 'between_dnds'] = np.nanmean(np.array(per_sample_dnds.between_dnds), dtype='float32')
+
     if haplotype_dnds.dnds.count() > 0:
         per_sample_dnds.loc['all_haplotypes', 'within_dnds'] = np.nanmean(np.array(haplotype_dnds.dnds), dtype='float32')
 
